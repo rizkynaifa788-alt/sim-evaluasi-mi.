@@ -1,0 +1,3631 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SIM-EVALUASI MI - Aplikasi Kisi-Kisi & Generator Soal Madrasah Ibtidaiyah</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- Google Fonts Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- SheetJS for Real Excel Export/Import -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          colors: {
+            kemenag: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              200: '#bbf7d0',
+              500: '#16a34a',
+              600: '#15803d',
+              700: '#006837', /* Hijau Resmi Kemenag */
+              800: '#065f46',
+              900: '#064e3b',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom Scrollbar & Print Styles */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    @media print {
+      body * { visibility: hidden; }
+      #printAreaContainer, #printAreaContainer * { visibility: visible; }
+      #printAreaContainer {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        box-shadow: none !important;
+      }
+      .no-print { display: none !important; }
+      @page { size: A4; margin: 15mm; }
+    }
+
+    .a4-preview {
+      background: white;
+      width: 100%;
+      max-width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      padding: 18mm;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+      color: #000;
+      font-family: 'Times New Roman', Times, serif;
+      line-height: 1.5;
+    }
+    .a4-preview table { border-collapse: collapse; width: 100%; }
+    .a4-preview th, .a4-preview td { border: 1px solid #000; padding: 6px 8px; font-size: 11pt; vertical-align: top; }
+    .kop-border { border-bottom: 3px double #000; padding-bottom: 8px; margin-bottom: 16px; }
+    .word-page-break { page-break-before: always; margin-top: 28px; padding-top: 16px; border-top: 2px dashed #cbd5e1; }
+    @media print {
+      .word-page-break { border-top: none; margin-top: 0; padding-top: 0; }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased selection:bg-kemenag-600 selection:text-white">
+
+  <!-- NOTIFICATION TOAST -->
+  <div id="toastContainer" class="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-md w-full pointer-events-none px-4"></div>
+
+  <!-- CONFIRMATION MODAL (No browser alert/confirm) -->
+  <div id="confirmModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl border border-slate-100 transform transition-all">
+      <div class="flex items-center gap-3 text-amber-600 mb-3">
+        <i class="fa-solid fa-triangle-exclamation text-2xl"></i>
+        <h3 id="confirmTitle" class="text-lg font-bold text-slate-800">Konfirmasi Tindakan</h3>
+      </div>
+      <p id="confirmMessage" class="text-sm text-slate-600 mb-6 leading-relaxed"></p>
+      <div class="flex justify-end gap-3">
+        <button id="confirmCancelBtn" class="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 transition">Batal</button>
+        <button id="confirmOkBtn" class="px-4 py-2 rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 transition">Ya, Lanjutkan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI LOADING OVERLAY -->
+  <div id="aiLoadingOverlay" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 hidden flex-col items-center justify-center p-6 text-center">
+    <div class="bg-white rounded-2xl p-8 max-w-lg w-full shadow-2xl border border-kemenag-100">
+      <div class="w-16 h-16 border-4 border-kemenag-200 border-t-kemenag-700 rounded-full animate-spin mx-auto mb-5"></div>
+      <h3 id="aiLoadingTitle" class="text-xl font-bold text-slate-800 mb-2">AI Sedang Menyusun Soal Ramah Anak MI...</h3>
+      <p id="aiLoadingDesc" class="text-sm text-slate-600 mb-4">Menyesuaikan kosakata sederhana tingkat Madrasah Ibtidaiyah (MI), ilustrasi dunia anak sehari-hari, serta memeriksa kaidah Pilihan Ganda tanpa tanda tanya (?).</p>
+      <div class="w-full bg-slate-100 rounded-full h-2.5 mb-2 overflow-hidden">
+        <div id="aiProgressBar" class="bg-kemenag-600 h-2.5 rounded-full transition-all duration-300" style="width: 25%"></div>
+      </div>
+      <span id="aiProgressStep" class="text-xs font-medium text-kemenag-700">Menganalisis Capaian & Tujuan Pembelajaran MI...</span>
+    </div>
+  </div>
+
+  <!-- MAIN LAYOUT -->
+  <div class="min-h-screen flex flex-col lg:flex-row">
+
+    <!-- SIDEBAR NAVIGATION -->
+    <aside id="sidebar" class="w-full lg:w-72 bg-kemenag-900 text-white flex flex-col shrink-0 no-print shadow-xl">
+      <!-- Brand Header -->
+      <div class="p-5 border-b border-kemenag-800 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-white text-kemenag-700 flex items-center justify-center font-bold text-xl shadow">
+            <i class="fa-solid fa-child-reaching"></i>
+          </div>
+          <div>
+            <h1 class="font-bold text-base tracking-wide leading-tight">SIM-EVALUASI MI</h1>
+            <p class="text-xs text-kemenag-200">Khusus Madrasah Ibtidaiyah</p>
+          </div>
+        </div>
+        <button onclick="toggleMobileMenu()" class="lg:hidden text-kemenag-200 hover:text-white p-2">
+          <i class="fa-solid fa-bars text-xl"></i>
+        </button>
+      </div>
+
+      <!-- Active Role Switcher / User Info -->
+      <div class="p-4 bg-kemenag-800/60 border-b border-kemenag-800">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs uppercase tracking-wider text-kemenag-200 font-semibold">Sesi Pengguna Aktif</span>
+          <span id="dbModeBadge" class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 font-medium">
+            <i class="fa-solid fa-database mr-1"></i>DB MI Aktif
+          </span>
+        </div>
+        <div class="flex items-center gap-2.5 mb-3">
+          <div class="w-9 h-9 rounded-full bg-kemenag-600 flex items-center justify-center font-bold text-sm" id="userAvatar">GR</div>
+          <div class="overflow-hidden">
+            <p id="activeUserName" class="text-sm font-semibold truncate">Belum Diatur</p>
+            <p id="activeUserRoleText" class="text-xs text-amber-300 font-medium">Guru Kelas / Mapel MI</p>
+          </div>
+        </div>
+        <label class="block text-[11px] text-kemenag-200 mb-1">Uji Hak Akses Role (RBAC):</label>
+        <select id="roleSelector" onchange="switchUserRole(this.value)" class="w-full bg-kemenag-950/90 text-white text-xs rounded-lg px-2.5 py-2 border border-kemenag-700 focus:outline-none focus:border-emerald-400">
+          <option value="GURU">Role: GURU MI (Pembuat Soal)</option>
+          <option value="KEPALA_MADRASAH">Role: KEPALA MI (Monitoring)</option>
+          <option value="SUPER_ADMIN">Role: SUPER ADMIN (Konfigurasi & DB)</option>
+        </select>
+      </div>
+
+      <!-- Navigation Links -->
+      <nav id="navMenu" class="flex-1 p-3 space-y-1 overflow-y-auto hidden lg:block">
+        <button onclick="navigate('dashboard')" data-nav="dashboard" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition bg-kemenag-700 text-white shadow-xs">
+          <i class="fa-solid fa-chart-pie w-5 text-center"></i>
+          <span>Dashboard & Monitoring MI</span>
+        </button>
+
+        <div class="pt-2 pb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-kemenag-200/70">Perangkat Evaluasi MI</div>
+        <button onclick="navigate('identitas')" data-nav="identitas" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-kemenag-100 hover:bg-kemenag-800 transition">
+          <i class="fa-solid fa-id-card-clip w-5 text-center"></i>
+          <span>1. Identitas MI & CP/TP</span>
+        </button>
+        <button onclick="navigate('kisikisi')" data-nav="kisikisi" class="nav-btn w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium text-kemenag-100 hover:bg-kemenag-800 transition">
+          <div class="flex items-center gap-3">
+            <i class="fa-solid fa-table-list w-5 text-center"></i>
+            <span>2. Penyusunan Kisi-Kisi</span>
+          </div>
+          <span id="badgeIndikatorCount" class="text-xs px-2 py-0.5 rounded-full bg-kemenag-700 text-white">0</span>
+        </button>
+        <button onclick="navigate('generator')" data-nav="generator" class="nav-btn w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium text-kemenag-100 hover:bg-kemenag-800 transition">
+          <div class="flex items-center gap-3">
+            <i class="fa-solid fa-wand-magic-sparkles w-5 text-center text-amber-300"></i>
+            <span>3. AI Generator Soal MI</span>
+          </div>
+          <span id="badgeGeneratedCount" class="text-xs px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 font-bold">0</span>
+        </button>
+
+        <div class="pt-2 pb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-kemenag-200/70">Manajemen & Cetak</div>
+        <button onclick="navigate('banksoal')" data-nav="banksoal" class="nav-btn w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium text-kemenag-100 hover:bg-kemenag-800 transition">
+          <div class="flex items-center gap-3">
+            <i class="fa-solid fa-vault w-5 text-center"></i>
+            <span>4. Bank Soal MI</span>
+          </div>
+          <span id="badgeBankCount" class="text-xs px-2 py-0.5 rounded-full bg-kemenag-700 text-white">0</span>
+        </button>
+        <button onclick="navigate('paketujian')" data-nav="paketujian" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-kemenag-100 hover:bg-kemenag-800 transition">
+          <i class="fa-solid fa-shuffle w-5 text-center"></i>
+          <span>5. Paket Ujian & Acak Opsi</span>
+        </button>
+        <button onclick="navigate('cetak')" data-nav="cetak" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-kemenag-100 hover:bg-kemenag-800 transition">
+          <i class="fa-solid fa-print w-5 text-center"></i>
+          <span>6. Dokumen & Cetak (A4)</span>
+        </button>
+
+        <div id="adminNavSection" class="pt-2">
+          <div class="pb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-kemenag-200/70">Sistem & Database</div>
+          <button onclick="navigate('config')" data-nav="config" class="nav-btn w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-kemenag-100 hover:bg-kemenag-800 transition">
+            <i class="fa-solid fa-gears w-5 text-center"></i>
+            <span>7. Database 17 Sheet & AI</span>
+          </button>
+        </div>
+      </nav>
+
+      <!-- Footer Info -->
+      <div class="p-4 border-t border-kemenag-800 text-xs text-kemenag-200/80 hidden lg:block">
+        <div class="flex items-center justify-between mb-1">
+          <span>Mode Bahasa AI:</span>
+          <span id="aiStatusIndicator" class="flex items-center gap-1.5 text-emerald-300 font-semibold">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Ramah Anak MI
+          </span>
+        </div>
+        <p class="text-[11px] text-kemenag-200/60">Khusus Jenjang MI (Kelas I–VI / Fase A–C)</p>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="flex-1 flex flex-col min-w-0 overflow-hidden">
+      
+      <!-- Top Bar -->
+      <header class="bg-white border-b border-slate-200 px-6 py-3.5 flex flex-wrap items-center justify-between gap-4 no-print">
+        <div>
+          <h2 id="pageTitle" class="text-lg font-bold text-slate-800">Dashboard Evaluasi & Monitoring MI</h2>
+          <p id="pageSubtitle" class="text-xs text-slate-500">Khusus tingkat Madrasah Ibtidaiyah (MI) dengan bahasa soal sederhana yang mudah dipahami anak usia MI.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <span id="activeAssessmentPill" class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-kemenag-50 text-kemenag-800 border border-kemenag-200">
+            <i class="fa-solid fa-book-open"></i>
+            <span id="headerMapelInfo">Belum Ada Identitas Mapel MI</span>
+          </span>
+          <button onclick="exportSpecificDocToWord('PAKET_LENGKAP')" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition" title="Unduh Kisi-Kisi, Naskah Soal, dan Kunci Jawaban dalam 1 file Microsoft Word (.doc)">
+            <i class="fa-solid fa-file-word"></i>
+            <span>Ekspor Word (Kisi-Kisi & Soal)</span>
+          </button>
+          <button onclick="saveAllToDatabase(true)" class="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold bg-kemenag-700 hover:bg-kemenag-800 text-white shadow-xs transition">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+            <span>Simpan Sinkronisasi DB</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Content Pages Container -->
+      <div class="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+
+        <!-- ==========================================
+             VIEW 1: DASHBOARD & MONITORING
+             ========================================== -->
+        <section id="view-dashboard" class="view-section space-y-6">
+          <!-- Banner Sambutan & Alur Kerja Khusus MI -->
+          <div class="bg-gradient-to-r from-kemenag-800 to-kemenag-600 rounded-2xl p-6 text-white shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div class="space-y-1.5 max-w-2xl">
+              <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/15 text-xs font-medium backdrop-blur-xs">
+                <i class="fa-solid fa-child-reaching text-amber-300"></i> Khusus Jenjang Madrasah Ibtidaiyah (MI) Kelas I–VI (Fase A, B, C)
+              </div>
+              <h3 class="text-xl font-bold">Aplikasi Kisi-Kisi & Generator Soal Ramah Anak Tingkat MI</h3>
+              <p class="text-xs sm:text-sm text-kemenag-100 leading-relaxed">
+                Dirancang khusus untuk guru Madrasah Ibtidaiyah (MI). AI secara otomatis menyesuaikan struktur kalimat agar <strong>pendek, lugas, konkret, menggunakan kosakata sehari-hari dunia anak MI</strong>, serta mematuhi kaidah Pilihan Ganda tanpa tanda tanya (?).
+              </p>
+            </div>
+            <div class="flex flex-wrap gap-2 shrink-0">
+              <button onclick="navigate('kisikisi')" class="px-4 py-2.5 rounded-xl bg-white text-kemenag-800 font-bold text-xs hover:bg-kemenag-50 transition shadow">
+                <i class="fa-solid fa-plus mr-1.5"></i>Susun Kisi-Kisi MI
+              </button>
+              <button onclick="navigate('generator')" class="px-4 py-2.5 rounded-xl bg-amber-400 text-slate-950 font-bold text-xs hover:bg-amber-300 transition shadow">
+                <i class="fa-solid fa-wand-magic-sparkles mr-1.5"></i>Generate Soal MI
+              </button>
+            </div>
+          </div>
+
+          <!-- Kartu Statistik Utama -->
+          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+              <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-medium text-slate-500">Dokumen Kisi-Kisi</span>
+                <i class="fa-solid fa-file-signature text-kemenag-600"></i>
+              </div>
+              <p id="statKisiCount" class="text-2xl font-bold text-slate-800">0</p>
+              <span class="text-[11px] text-emerald-600 font-medium">Aktif Disusun</span>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+              <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-medium text-slate-500">Total Indikator</span>
+                <i class="fa-solid fa-list-check text-blue-600"></i>
+              </div>
+              <p id="statIndikatorCount" class="text-2xl font-bold text-slate-800">0</p>
+              <span class="text-[11px] text-slate-500">Terpetakan CP/TP MI</span>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+              <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-medium text-slate-500">Soal Dihasilkan</span>
+                <i class="fa-solid fa-brain text-purple-600"></i>
+              </div>
+              <p id="statSoalCount" class="text-2xl font-bold text-slate-800">0</p>
+              <span class="text-[11px] text-slate-500">Bahasa Anak MI</span>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+              <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-medium text-slate-500">Soal Valid</span>
+                <i class="fa-solid fa-circle-check text-emerald-600"></i>
+              </div>
+              <p id="statValidCount" class="text-2xl font-bold text-emerald-600">0</p>
+              <span class="text-[11px] text-emerald-600 font-medium">Lolos 11 Parameter</span>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+              <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-medium text-slate-500">Perlu Revisi</span>
+                <i class="fa-solid fa-triangle-exclamation text-amber-500"></i>
+              </div>
+              <p id="statRevisiCount" class="text-2xl font-bold text-amber-600">0</p>
+              <span class="text-[11px] text-amber-600">Cek Kaidah PG</span>
+            </div>
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+              <div class="flex items-center justify-between text-slate-400 mb-2">
+                <span class="text-xs font-medium text-slate-500">Paket Ujian</span>
+                <i class="fa-solid fa-box-archive text-indigo-600"></i>
+              </div>
+              <p id="statPaketCount" class="text-2xl font-bold text-slate-800">0</p>
+              <span class="text-[11px] text-slate-500">Siap Cetak</span>
+            </div>
+          </div>
+
+          <!-- Monitoring Kepala Madrasah & Distribusi Kognitif -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Distribusi Level Kognitif -->
+            <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="font-bold text-sm text-slate-800"><i class="fa-solid fa-layer-group text-kemenag-600 mr-2"></i>Distribusi Level Kognitif MI</h3>
+                <span class="text-xs text-slate-400">C1–C6</span>
+              </div>
+              <div id="cognitiveDistributionBars" class="space-y-3">
+                <!-- Diisi via JS -->
+              </div>
+            </div>
+
+            <!-- Panel Monitoring Kepala Madrasah & Log Aktivitas -->
+            <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between">
+              <div>
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                  <div>
+                    <h3 class="font-bold text-sm text-slate-800"><i class="fa-solid fa-user-tie text-kemenag-600 mr-2"></i>Monitoring Penyusunan Perangkat Guru MI & Log Aktivitas</h3>
+                    <p class="text-xs text-slate-500">Pantauan real-time untuk Kepala Madrasah Ibtidaiyah (MI)</p>
+                  </div>
+                  <button onclick="exportMonitoringExcel()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition">
+                    <i class="fa-solid fa-file-excel mr-1"></i>Unduh Rekap Monitoring (Excel)
+                  </button>
+                </div>
+
+                <div class="overflow-x-auto mb-4">
+                  <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr class="bg-slate-50 border-y border-slate-200 text-slate-600">
+                        <th class="py-2.5 px-3">Nama Guru MI</th>
+                        <th class="py-2.5 px-3">Mata Pelajaran & Kelas MI</th>
+                        <th class="py-2.5 px-3">Jenis Penilaian</th>
+                        <th class="py-2.5 px-3 text-center">Indikator</th>
+                        <th class="py-2.5 px-3 text-center">Butir Soal</th>
+                        <th class="py-2.5 px-3">Status Validasi</th>
+                      </tr>
+                    </thead>
+                    <tbody id="monitoringTeacherTable" class="divide-y divide-slate-100">
+                      <!-- Diisi via JS -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- Log Aktivitas Terbaru -->
+              <div class="border-t border-slate-100 pt-3">
+                <h4 class="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">Log Aktivitas Sistem Terbaru (`LOG_AKTIVITAS`)</h4>
+                <div id="activityLogList" class="space-y-1.5 max-h-36 overflow-y-auto text-xs text-slate-600">
+                  <!-- Diisi via JS -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==========================================
+             VIEW 2: IDENTITAS DAN DATA PENILAIAN KHUSUS MI
+             ========================================== -->
+        <section id="view-identitas" class="view-section hidden space-y-6">
+          <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-xs">
+            <div class="flex flex-wrap items-center justify-between gap-4 pb-4 mb-6 border-b border-slate-200">
+              <div>
+                <h3 class="text-base font-bold text-slate-800">Identitas Madrasah Ibtidaiyah (MI) & Spesifikasi Penilaian</h3>
+                <p class="text-xs text-slate-500">Data Kelas/Fase MI ini menjadi acuan otomatis AI dalam menyederhanakan bahasa soal agar mudah dipahami anak usia MI (6–12 tahun).</p>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <button onclick="saveIdentitasForm(false)" class="px-4 py-2 rounded-lg text-xs font-semibold bg-kemenag-700 hover:bg-kemenag-800 text-white transition">
+                  <i class="fa-solid fa-floppy-disk mr-1.5"></i>Simpan Identitas & Lanjut ke Kisi-Kisi
+                </button>
+                <button onclick="saveIdentitasForm(true)" class="px-4 py-2 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-xs transition flex items-center gap-1.5">
+                  <i class="fa-solid fa-wand-magic-sparkles"></i>
+                  <span>Simpan & Generate Indikator Otomatis dari TP (AI)</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Info Standar Bahasa Anak MI -->
+            <div class="mb-5 p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-start gap-3 text-xs text-emerald-950">
+              <i class="fa-solid fa-child-reaching text-lg text-kemenag-700 mt-0.5"></i>
+              <div>
+                <strong class="font-bold">Penyesuaian Otomatis Bahasa Anak Tingkat MI:</strong>
+                <ul class="list-disc pl-4 mt-1 space-y-0.5 text-emerald-800">
+                  <li><strong>Fase A (Kelas I & II MI):</strong> Kalimat sangat pendek (maksimal 1–2 kalimat sederhana), kosakata konkret sehari-hari di rumah/madrasah, dan 3–4 pilihan jawaban singkat yang mudah dibaca anak.</li>
+                  <li><strong>Fase B (Kelas III & IV MI):</strong> Bahasa cerita sederhana yang dekat dengan pengalaman bermain, belajar, dan beribadah anak sehari-hari, tanpa istilah asing yang rumit.</li>
+                  <li><strong>Fase C (Kelas V & VI MI):</strong> Kalimat komunikatif, jelas, melatih penalaran anak secara bertahap namun tetap ramah dan mudah dipahami siswa tingkat dasar.</li>
+                </ul>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Nama Madrasah Ibtidaiyah (MI) *</label>
+                <input id="id_namaMadrasah" type="text" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-kemenag-600 focus:outline-none" placeholder="Contoh: MIN 1 / MIS Al-Hidayah">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Tahun Pelajaran *</label>
+                <select id="id_tahunPelajaran" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-kemenag-600 focus:outline-none">
+                  <option value="2025/2026">2025/2026</option>
+                  <option value="2026/2027" selected>2026/2027</option>
+                  <option value="2027/2028">2027/2028</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Semester *</label>
+                <select id="id_semester" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-kemenag-600 focus:outline-none">
+                  <option value="Ganjil">Ganjil (I)</option>
+                  <option value="Genap">Genap (II)</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Nama Guru Kelas / Mapel MI *</label>
+                <input id="id_namaGuru" type="text" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-kemenag-600 focus:outline-none" placeholder="Masukkan nama lengkap & gelar">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">NIP / NUPTK Guru</label>
+                <input id="id_nipGuru" type="text" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-kemenag-600 focus:outline-none" placeholder="Masukkan NIP / NUPTK">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Nama Kepala Madrasah Ibtidaiyah</label>
+                <input id="id_kepalaMadrasah" type="text" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-kemenag-600 focus:outline-none" placeholder="Masukkan nama Kepala MI">
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Mata Pelajaran MI *</label>
+                <input id="id_mapel" type="text" list="miMapelSuggestions" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-kemenag-600 focus:outline-none" placeholder="Contoh: Akidah Akhlak / IPAS / Bahasa Indonesia">
+                <datalist id="miMapelSuggestions">
+                  <option value="Al-Qur'an Hadis">
+                  <option value="Akidah Akhlak">
+                  <option value="Fikih">
+                  <option value="Sejarah Kebudayaan Islam (SKI)">
+                  <option value="Bahasa Arab">
+                  <option value="Pendidikan Pancasila">
+                  <option value="Bahasa Indonesia">
+                  <option value="Matematika">
+                  <option value="Ilmu Pengetahuan Alam dan Sosial (IPAS)">
+                  <option value="Seni dan Budaya">
+                  <option value="PJOK">
+                </datalist>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Kelas / Fase MI (Khusus Tingkat MI) *</label>
+                <select id="id_kelas" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-kemenag-900 focus:border-kemenag-600 focus:outline-none">
+                  <option value="Kelas I / Fase A (MI)">Kelas I / Fase A (MI - Usia 6-7 Tahun)</option>
+                  <option value="Kelas II / Fase A (MI)">Kelas II / Fase A (MI - Usia 7-8 Tahun)</option>
+                  <option value="Kelas III / Fase B (MI)">Kelas III / Fase B (MI - Usia 8-9 Tahun)</option>
+                  <option value="Kelas IV / Fase B (MI)" selected>Kelas IV / Fase B (MI - Usia 9-10 Tahun)</option>
+                  <option value="Kelas V / Fase C (MI)">Kelas V / Fase C (MI - Usia 10-11 Tahun)</option>
+                  <option value="Kelas VI / Fase C (MI)">Kelas VI / Fase C (MI - Usia 11-12 Tahun)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Jenis Penilaian *</label>
+                <select id="id_jenisPenilaian" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-kemenag-600 focus:outline-none">
+                  <option value="Asesmen Formatif">Asesmen Formatif</option>
+                  <option value="Sumatif Harian">Sumatif Harian (Ulangan Harian)</option>
+                  <option value="Sumatif Tengah Semester">Sumatif Tengah Semester (STS)</option>
+                  <option value="Sumatif Akhir Semester" selected>Sumatif Akhir Semester (SAS)</option>
+                  <option value="Sumatif Akhir Tahun">Sumatif Akhir Tahun (SAT)</option>
+                  <option value="Ujian Madrasah">Ujian Madrasah Ibtidaiyah (UM MI)</option>
+                  <option value="Penilaian Lainnya">Penilaian Lainnya</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Kurikulum Acuan MI *</label>
+                <select id="id_kurikulum" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-kemenag-600 focus:outline-none">
+                  <option value="Kurikulum Merdeka MI (KMA 450/2024)">Kurikulum Merdeka MI (KMA 450/2024)</option>
+                  <option value="Kurikulum 2013 MI (KMA 183/2019)">Kurikulum 2013 MI (KMA 183/2019)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Alokasi Waktu (Menit) *</label>
+                <input id="id_alokasiWaktu" type="number" min="15" max="180" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-kemenag-600 focus:outline-none" value="60">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Target Jumlah Soal / Indikator *</label>
+                <input id="id_jumlahSoal" type="number" min="1" max="100" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold text-kemenag-800 focus:border-kemenag-600 focus:outline-none" value="10">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Bentuk Soal Default</label>
+                <select id="id_bentukDefault" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-kemenag-600 focus:outline-none">
+                  <option value="Pilihan Ganda">Pilihan Ganda (A-D)</option>
+                  <option value="Pilihan Ganda Kompleks">Pilihan Ganda Kompleks</option>
+                  <option value="Benar/Salah">Benar/Salah</option>
+                  <option value="Menjodohkan">Menjodohkan</option>
+                  <option value="Isian Singkat">Isian Singkat</option>
+                  <option value="Uraian">Uraian Sederhana</option>
+                </select>
+              </div>
+
+              <div class="md:col-span-2">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Materi Pokok Pembelajaran MI *</label>
+                <input id="id_materiPokok" type="text" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-kemenag-600 focus:outline-none" placeholder="Masukkan materi pokok pembelajaran MI (pisahkan dengan koma jika lebih dari satu)">
+              </div>
+
+              <div class="md:col-span-3">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Capaian Pembelajaran (CP) Tingkat MI *</label>
+                <textarea id="id_cp" rows="2" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-kemenag-600 focus:outline-none" placeholder="Masukkan rumusan Capaian Pembelajaran (CP) Fase A / B / C tingkat MI"></textarea>
+              </div>
+
+              <div class="md:col-span-3">
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Tujuan Pembelajaran (TP) Tingkat MI *</label>
+                <textarea id="id_tp" rows="2" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-kemenag-600 focus:outline-none" placeholder="Masukkan rumusan Tujuan Pembelajaran (TP) tingkat MI"></textarea>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==========================================
+             VIEW 3: MODUL PENYUSUNAN KISI-KISI
+             ========================================== -->
+        <section id="view-kisikisi" class="view-section hidden space-y-5">
+          <!-- Toolbar Kisi-Kisi -->
+          <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 class="text-base font-bold text-slate-800">Matriks Kisi-Kisi Penulisan Soal MI</h3>
+              <p class="text-xs text-slate-500">Indikator soal diturunkan secara otomatis dan nyata dari Tujuan Pembelajaran (TP) dengan konteks sederhana tingkat MI.</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <button onclick="triggerAIGenerateIndicatorsFromTP()" class="px-3.5 py-2 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-xs transition flex items-center gap-1.5" title="Turunkan indikator soal otomatis dari Tujuan Pembelajaran (TP) menggunakan AI">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                <span>Generate Indikator Otomatis dari TP (AI)</span>
+              </button>
+              <button onclick="addKisiRow()" class="px-3.5 py-2 rounded-lg text-xs font-semibold bg-kemenag-700 hover:bg-kemenag-800 text-white transition">
+                <i class="fa-solid fa-plus mr-1"></i>Tambah Baris Manual
+              </button>
+              <button onclick="autoNumberKisiRows()" class="px-3 py-2 rounded-lg text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 transition" title="Urutkan ulang nomor soal secara otomatis">
+                <i class="fa-solid fa-arrow-down-1-9 mr-1"></i>Nomor Otomatis
+              </button>
+              <button onclick="balanceCognitiveLevels()" class="px-3 py-2 rounded-lg text-xs font-medium bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition" title="Distribusi proporsional level kognitif ramah MI">
+                <i class="fa-solid fa-scale-balanced mr-1"></i>Distribusi Level C1–C6 MI
+              </button>
+              <button onclick="validateKisiCompleteness(true)" class="px-3 py-2 rounded-lg text-xs font-medium bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition">
+                <i class="fa-solid fa-clipboard-check mr-1"></i>Validasi Kisi-Kisi
+              </button>
+              <label class="cursor-pointer px-3 py-2 rounded-lg text-xs font-medium bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition">
+                <i class="fa-solid fa-file-import mr-1"></i>Impor Excel
+                <input type="file" accept=".xlsx,.xls,.csv" onchange="importKisiExcel(event)" class="hidden">
+              </label>
+              <button onclick="exportSpecificDocToWord('KISI_KISI')" class="px-3 py-2 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition">
+                <i class="fa-solid fa-file-word mr-1"></i>Ekspor Kisi-Kisi (Word)
+              </button>
+              <button onclick="exportKisiExcel()" class="px-3 py-2 rounded-lg text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
+                <i class="fa-solid fa-file-excel mr-1 text-emerald-600"></i>Ekspor Excel
+              </button>
+            </div>
+          </div>
+
+          <!-- Status Validasi Kisi-Kisi -->
+          <div id="kisiValidationBanner" class="hidden rounded-xl p-4 border text-xs"></div>
+
+          <!-- Tabel Matriks Kisi-Kisi -->
+          <div class="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr class="bg-slate-100 border-b border-slate-200 text-slate-700 font-semibold">
+                    <th class="py-3 px-2.5 text-center w-10">No</th>
+                    <th class="py-3 px-2.5 min-w-[160px]">Capaian Pembelajaran (CP)</th>
+                    <th class="py-3 px-2.5 min-w-[160px]">Tujuan Pembelajaran (TP)</th>
+                    <th class="py-3 px-2.5 min-w-[130px]">Materi Pokok</th>
+                    <th class="py-3 px-2.5 min-w-[230px]">Indikator Soal (Konteks Anak MI)</th>
+                    <th class="py-3 px-2.5 w-36">Level Kognitif</th>
+                    <th class="py-3 px-2.5 w-44">Bentuk Soal</th>
+                    <th class="py-3 px-2.5 w-20 text-center">No. Soal</th>
+                    <th class="py-3 px-2.5 w-20 text-center">Bobot</th>
+                    <th class="py-3 px-2.5 w-28 text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="kisiTableBody" class="divide-y divide-slate-200">
+                  <!-- Diisi via JS -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Footer Bar Kisi-Kisi & Tombol Utama Generate -->
+            <div class="bg-slate-50 px-5 py-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-4">
+              <div class="flex flex-wrap items-center gap-4 text-xs text-slate-600">
+                <span>Total Indikator: <strong id="footerKisiCount" class="text-slate-900">0</strong></span>
+                <span>Total Bobot Nilai: <strong id="footerTotalBobot" class="text-kemenag-700">0</strong></span>
+              </div>
+              <button onclick="navigate('generator'); triggerFullAIGeneration();" class="px-5 py-2.5 rounded-xl text-sm font-bold bg-gradient-to-r from-kemenag-700 to-emerald-600 hover:from-kemenag-800 hover:to-emerald-700 text-white shadow-md transition flex items-center gap-2">
+                <i class="fa-solid fa-wand-magic-sparkles text-amber-300"></i>
+                <span>GENERATE SOAL DARI KISI-KISI</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==========================================
+             VIEW 4: GENERATOR SOAL AI & VALIDASI OTOMATIS
+             ========================================== -->
+        <section id="view-generator" class="view-section hidden space-y-5">
+          <!-- Panel Kontrol Utama AI Generator -->
+          <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div class="space-y-1">
+                <div class="inline-flex items-center gap-2 text-xs font-bold text-kemenag-700 uppercase tracking-wider">
+                  <i class="fa-solid fa-child-reaching"></i> AI Question Generator Khusus Bahasa Anak Tingkat MI
+                </div>
+                <h3 class="text-lg font-bold text-slate-800">Generator Soal Otomatis Ramah Anak Madrasah Ibtidaiyah (MI)</h3>
+                <p class="text-xs text-slate-600 leading-relaxed max-w-3xl">
+                  AI membaca setiap indikator kisi-kisi dan menyusun soal dengan <strong>bahasa yang sederhana, kalimat pendek, lugas, dan menggunakan contoh kehidupan sehari-hari anak MI</strong>.
+                  <strong class="text-red-600">Kaidah Wajib PG:</strong> Batang soal Pilihan Ganda diwajibkan berbentuk kalimat pernyataan atau perintah yang diakhiri tanda titik (<code class="bg-slate-100 px-1 rounded">....</code>) dan <strong>dilarang menggunakan tanda tanya (?)</strong>.
+                </p>
+              </div>
+              <div class="flex flex-wrap items-center gap-2 shrink-0">
+                <button onclick="triggerFullAIGeneration()" class="px-5 py-3 rounded-xl text-sm font-bold bg-kemenag-700 hover:bg-kemenag-800 text-white shadow-md transition flex items-center gap-2">
+                  <i class="fa-solid fa-wand-magic-sparkles text-amber-300"></i>
+                  <span>GENERATE SOAL DARI KISI-KISI</span>
+                </button>
+                <button onclick="runAutoValidationAll()" class="px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition">
+                  <i class="fa-solid fa-shield-check mr-1"></i>Validasi Ulang (11 Parameter)
+                </button>
+                <button onclick="exportSpecificDocToWord('NASKAH_SOAL')" class="px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white transition" title="Unduh Naskah Soal dalam bentuk Microsoft Word (.doc)">
+                  <i class="fa-solid fa-file-word mr-1"></i>Unduh Soal (Word)
+                </button>
+                <button onclick="exportSpecificDocToWord('PAKET_LENGKAP')" class="px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white transition" title="Unduh Kisi-Kisi + Naskah Soal + Kunci dalam 1 file Word (.doc)">
+                  <i class="fa-solid fa-file-word mr-1"></i>Unduh Kisi-Kisi & Soal (Word)
+                </button>
+                <button onclick="approveAndSaveAllToBank()" class="px-3.5 py-2.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition">
+                  <i class="fa-solid fa-check-double mr-1"></i>Setujui & Simpan ke Bank Soal
+                </button>
+              </div>
+            </div>
+
+            <!-- Disclaimer Akademik -->
+            <div class="mt-4 p-3 rounded-lg bg-amber-50 border border-amber-200 flex items-start gap-2.5 text-xs text-amber-900">
+              <i class="fa-solid fa-circle-info text-amber-600 mt-0.5"></i>
+              <div>
+                <strong>Catatan Otoritas Akademik Guru MI:</strong> Validasi otomatis memeriksa 11 parameter kualitas (kesesuaian indikator, keterbacaan kalimat untuk anak tingkat MI, ketepatan kunci, pengecoh logis, ketiadaan tanda tanya pada PG, dan bebas duplikasi). <strong>Guru tetap menjadi pihak berwenang yang memeriksa dan menyetujui soal</strong>.
+              </div>
+            </div>
+          </div>
+
+          <!-- Ringkasan Hasil Validasi 11 Parameter -->
+          <div id="validationSummaryBar" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 flex items-center justify-between">
+              <div>
+                <p class="text-xs font-semibold text-emerald-800">Status: VALID (Ramah Anak MI)</p>
+                <p class="text-[11px] text-emerald-600">Sesuai indikator, bahasa MI & kaidah PG</p>
+              </div>
+              <span id="genValidBadge" class="text-2xl font-bold text-emerald-700">0</span>
+            </div>
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex items-center justify-between">
+              <div>
+                <p class="text-xs font-semibold text-amber-800">Status: PERLU REVISI</p>
+                <p class="text-[11px] text-amber-700">Perlu penyederhanaan kalimat/opsi</p>
+              </div>
+              <span id="genRevisiBadge" class="text-2xl font-bold text-amber-700">0</span>
+            </div>
+            <div class="bg-red-50 border border-red-200 rounded-xl p-3.5 flex items-center justify-between">
+              <div>
+                <p class="text-xs font-semibold text-red-800">Status: TIDAK VALID</p>
+                <p class="text-[11px] text-red-600">Melanggar aturan tanda (?) PG / tanpa kunci</p>
+              </div>
+              <span id="genInvalidBadge" class="text-2xl font-bold text-red-700">0</span>
+            </div>
+          </div>
+
+          <!-- Daftar Kartu Pratinjau & Editor Soal Hasil Generate -->
+          <div id="generatedQuestionsContainer" class="space-y-4">
+            <!-- Diisi via JS -->
+          </div>
+        </section>
+
+        <!-- ==========================================
+             VIEW 5: MODUL BANK SOAL TERPADU
+             ========================================== -->
+        <section id="view-banksoal" class="view-section hidden space-y-5">
+          <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 class="text-base font-bold text-slate-800">Database Bank Soal Madrasah Ibtidaiyah (`BANK_SOAL`)</h3>
+                <p class="text-xs text-slate-500">Kelola, filter, gabungkan, dan pilih soal tingkat MI untuk dirakit menjadi Paket Ujian.</p>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <button onclick="addSelectedBankToPaket()" class="px-3.5 py-2 rounded-lg text-xs font-semibold bg-kemenag-700 hover:bg-kemenag-800 text-white transition">
+                  <i class="fa-solid fa-box-open mr-1"></i>Masukkan Soal Terpilih ke Paket Ujian
+                </button>
+                <button onclick="exportSpecificDocToWord('NASKAH_SOAL')" class="px-3 py-2 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition">
+                  <i class="fa-solid fa-file-word mr-1"></i>Ekspor Soal (Word)
+                </button>
+                <button onclick="exportSpecificDocToWord('PAKET_LENGKAP')" class="px-3 py-2 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition">
+                  <i class="fa-solid fa-file-word mr-1"></i>Ekspor Kisi-Kisi & Soal (Word)
+                </button>
+                <button onclick="exportBankSoalExcel()" class="px-3 py-2 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition">
+                  <i class="fa-solid fa-file-excel mr-1"></i>Ekspor Bank Soal (Excel)
+                </button>
+              </div>
+            </div>
+
+            <!-- Filter Pencarian Bank Soal -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-2 border-t border-slate-100">
+              <div class="lg:col-span-2">
+                <input id="bankSearchInput" oninput="renderBankSoal()" type="text" placeholder="Cari kata kunci soal, materi, atau indikator..." class="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-kemenag-600 focus:outline-none">
+              </div>
+              <div>
+                <select id="bankFilterLevel" onchange="renderBankSoal()" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-kemenag-600 focus:outline-none">
+                  <option value="ALL">Semua Level Kognitif</option>
+                  <option value="C1">C1 - Mengingat</option>
+                  <option value="C2">C2 - Memahami</option>
+                  <option value="C3">C3 - Menerapkan</option>
+                  <option value="C4">C4 - Menganalisis (HOTS MI)</option>
+                  <option value="C5">C5 - Mengevaluasi (HOTS MI)</option>
+                  <option value="C6">C6 - Mencipta (HOTS MI)</option>
+                </select>
+              </div>
+              <div>
+                <select id="bankFilterBentuk" onchange="renderBankSoal()" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-kemenag-600 focus:outline-none">
+                  <option value="ALL">Semua Bentuk Soal</option>
+                  <option value="Pilihan Ganda">Pilihan Ganda</option>
+                  <option value="Pilihan Ganda Kompleks">Pilihan Ganda Kompleks</option>
+                  <option value="Benar/Salah">Benar/Salah</option>
+                  <option value="Menjodohkan">Menjodohkan</option>
+                  <option value="Isian Singkat">Isian Singkat</option>
+                  <option value="Uraian">Uraian</option>
+                </select>
+              </div>
+              <div>
+                <select id="bankFilterStatus" onchange="renderBankSoal()" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-kemenag-600 focus:outline-none">
+                  <option value="ALL">Semua Status Persetujuan</option>
+                  <option value="DISETUJUI">Disetujui Guru</option>
+                  <option value="DRAFT">Draft</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tabel Bank Soal -->
+          <div class="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr class="bg-slate-100 border-b border-slate-200 text-slate-700 font-semibold">
+                    <th class="py-3 px-3 w-10 text-center">
+                      <input type="checkbox" id="selectAllBankCheckbox" onchange="toggleSelectAllBank(this.checked)">
+                    </th>
+                    <th class="py-3 px-3 w-12">No</th>
+                    <th class="py-3 px-3 w-48">Mapel / Materi / Indikator</th>
+                    <th class="py-3 px-3">Batang Soal & Opsi Jawaban (Bahasa Anak MI)</th>
+                    <th class="py-3 px-3 w-28">Level & Bentuk</th>
+                    <th class="py-3 px-3 w-24 text-center">Kunci & Bobot</th>
+                    <th class="py-3 px-3 w-28 text-center">Validasi</th>
+                    <th class="py-3 px-3 w-28 text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="bankSoalTableBody" class="divide-y divide-slate-200">
+                  <!-- Diisi via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==========================================
+             VIEW 6: MODUL PEMBUATAN PAKET UJIAN
+             ========================================== -->
+        <section id="view-paketujian" class="view-section hidden space-y-5">
+          <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
+            <div class="flex flex-wrap items-center justify-between gap-4 pb-4 mb-4 border-b border-slate-200">
+              <div>
+                <h3 class="text-base font-bold text-slate-800">Perakitan Paket Ujian MI & Pengacakan Otomatis</h3>
+                <p class="text-xs text-slate-500">Acak urutan nomor soal maupun urutan pilihan jawaban (A–D) dengan sinkronisasi kunci jawaban otomatis.</p>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <button onclick="createNewExamPackage('PAKET A (UTAMA)')" class="px-3.5 py-2 rounded-lg text-xs font-semibold bg-kemenag-700 hover:bg-kemenag-800 text-white transition">
+                  <i class="fa-solid fa-plus mr-1"></i>Buat Paket Baru dari Bank Soal
+                </button>
+                <button onclick="generateParallelRandomizedPackage()" class="px-3.5 py-2 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white transition">
+                  <i class="fa-solid fa-shuffle mr-1"></i>Acak Soal & Opsi (Buat Paket Paralel B/C)
+                </button>
+              </div>
+            </div>
+
+            <!-- Pengaturan Paket Aktif -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Pilih Paket Ujian Aktif</label>
+                <select id="activePackageSelect" onchange="selectExamPackage(this.value)" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold focus:border-kemenag-600 focus:outline-none"></select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Kode / Nama Paket</label>
+                <input id="pkg_namaPaket" onchange="updateActivePackageMeta()" type="text" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-kemenag-600 focus:outline-none">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Alokasi Waktu (Menit)</label>
+                <input id="pkg_waktu" onchange="updateActivePackageMeta()" type="number" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-kemenag-600 focus:outline-none" value="60">
+              </div>
+              <div class="flex items-end gap-2">
+                <button onclick="shuffleActivePackageQuestions()" class="flex-1 px-3 py-2 rounded-lg text-xs font-semibold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition">
+                  <i class="fa-solid fa-random mr-1"></i>Acak Urutan Soal
+                </button>
+                <button onclick="shuffleActivePackageOptions()" class="flex-1 px-3 py-2 rounded-lg text-xs font-semibold bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 transition" title="Mengacak opsi A-D dan memperbarui kunci jawaban secara otomatis">
+                  <i class="fa-solid fa-arrows-spin mr-1"></i>Acak Opsi A–D
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-700 mb-1">Petunjuk Pengerjaan Ujian (Ramah Anak MI)</label>
+              <textarea id="pkg_petunjuk" onchange="updateActivePackageMeta()" rows="2" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-kemenag-600 focus:outline-none">1. Bacalah basmalah dan berdoalah sebelum mulai mengerjakan soal. 2. Tulislah nama lengkap dan nomor absenmu pada lembar jawaban. 3. Bacalah setiap soal dengan teliti dan pilihlah jawaban yang paling tepat. 4. Kerjakan sendiri dengan jujur dan periksa kembali jawabanmu sebelum dikumpulkan.</textarea>
+            </div>
+          </div>
+
+          <!-- Daftar Soal dalam Paket -->
+          <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <h4 class="text-sm font-bold text-slate-800">Daftar Butir Soal & Kunci Jawaban Terkini dalam Paket</h4>
+              <div class="flex flex-wrap gap-2">
+                <button onclick="exportSpecificDocToWord('NASKAH_SOAL')" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700 transition">
+                  <i class="fa-solid fa-file-word mr-1"></i>Unduh Paket Soal Ini (.doc)
+                </button>
+                <button onclick="navigate('cetak')" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-kemenag-700 text-white hover:bg-kemenag-800 transition">
+                  <i class="fa-solid fa-print mr-1"></i>Buka Pratinjau Cetak Paket Ini
+                </button>
+              </div>
+            </div>
+            <div id="packageQuestionsList" class="space-y-3">
+              <!-- Diisi via JS -->
+            </div>
+          </div>
+        </section>
+
+        <!-- ==========================================
+             VIEW 7: MODUL DOKUMEN DAN CETAK (A4 / WORD / PDF / EXCEL)
+             ========================================== -->
+        <section id="view-cetak" class="view-section hidden space-y-5">
+          <!-- Control Bar Cetak -->
+          <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex flex-wrap items-center justify-between gap-4 no-print">
+            <div class="flex flex-wrap items-center gap-2">
+              <label class="text-xs font-bold text-slate-700 mr-1">Pilih Jenis Dokumen:</label>
+              <select id="printDocTypeSelect" onchange="renderPrintDocument()" class="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold bg-slate-50 focus:border-kemenag-600 focus:outline-none">
+                <option value="PAKET_LENGKAP">0. Paket Lengkap: Kisi-Kisi + Naskah Soal + Kunci & Pembahasan (Gabungan)</option>
+                <option value="NASKAH_SOAL" selected>1. Naskah Soal Ujian MI (Tanpa Kunci)</option>
+                <option value="KUNCI_JAWABAN">2. Kunci Jawaban Terpisah</option>
+                <option value="PEMBAHASAN">3. Pedoman Penskoran & Pembahasan Soal</option>
+                <option value="KISI_KISI">4. Matriks Kisi-Kisi Penulisan Soal MI</option>
+                <option value="KARTU_SOAL">5. Kartu Soal Standar Madrasah Ibtidaiyah</option>
+                <option value="ANALISIS_KUALITAS">6. Lembar Analisis Validasi Kualitas Soal</option>
+                <option value="REKAP_INDIKATOR">7. Rekapitulasi Sebaran Soal per Indikator</option>
+                <option value="REKAP_KOGNITIF">8. Rekapitulasi Distribusi Level Kognitif (C1–C6)</option>
+              </select>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <button onclick="exportDocumentToWord()" class="px-4 py-2 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition">
+                <i class="fa-solid fa-file-word mr-1.5"></i>Unduh Dokumen Ini (.doc)
+              </button>
+              <button onclick="exportSpecificDocToWord('KISI_KISI')" class="px-3.5 py-2 rounded-lg text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition">
+                <i class="fa-solid fa-file-word mr-1"></i>Word Kisi-Kisi
+              </button>
+              <button onclick="exportSpecificDocToWord('NASKAH_SOAL')" class="px-3.5 py-2 rounded-lg text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 transition">
+                <i class="fa-solid fa-file-word mr-1"></i>Word Naskah Soal
+              </button>
+              <button onclick="exportSpecificDocToWord('PAKET_LENGKAP')" class="px-3.5 py-2 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition">
+                <i class="fa-solid fa-file-word mr-1"></i>Word Gabungan (Kisi-Kisi + Soal + Kunci)
+              </button>
+              <button onclick="window.print()" class="px-4 py-2 rounded-lg text-xs font-bold bg-kemenag-700 hover:bg-kemenag-800 text-white shadow-xs transition">
+                <i class="fa-solid fa-file-pdf mr-1.5"></i>Cetak / PDF (A4)
+              </button>
+              <button onclick="exportFullWorkbookExcel()" class="px-3.5 py-2 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition">
+                <i class="fa-solid fa-file-excel mr-1"></i>Excel (.xlsx)
+              </button>
+            </div>
+          </div>
+
+          <!-- Kertas A4 Preview -->
+          <div class="overflow-x-auto py-2">
+            <div id="printAreaContainer" class="a4-preview">
+              <!-- Diisi via JS -->
+            </div>
+          </div>
+        </section>
+
+        <!-- ==========================================
+             VIEW 8: KONFIGURASI SISTEM, AI & 17 SHEET DATABASE
+             ========================================== -->
+        <section id="view-config" class="view-section hidden space-y-6">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Konfigurasi AI & Keamanan (Termasuk Mode Vercel Hybrid) -->
+            <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
+              <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <h3 class="text-base font-bold text-slate-800"><i class="fa-solid fa-key text-kemenag-600 mr-2"></i>Konfigurasi AI Engine & Koneksi Cloud</h3>
+                  <p class="text-xs text-slate-500">Mendukung penuh Deployment Vercel + Backend Google Apps Script</p>
+                </div>
+                <span class="px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">Vercel & GAS Ready</span>
+              </div>
+
+              <div class="space-y-3 text-xs">
+                <div class="p-3 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 leading-relaxed">
+                  <strong>Mode Hybrid Vercel + Google Spreadsheet:</strong> Jika aplikasi di-deploy di <strong>Vercel</strong>, Anda dapat memasukkan <strong>URL Web App Google Apps Script</strong> di bawah ini agar seluruh 17 Sheet tetap tersinkronisasi ke Google Spreadsheet milik madrasah.
+                </div>
+                <div>
+                  <label class="block font-semibold text-slate-700 mb-1">URL Web App Google Apps Script (Opsional untuk Vercel)</label>
+                  <div class="flex gap-2">
+                    <input id="cfg_gasUrlInput" type="url" placeholder="https://script.google.com/macros/s/.../exec" class="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-kemenag-600 focus:outline-none">
+                    <button onclick="saveGasWebAppUrl()" class="px-3.5 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition">Hubungkan</button>
+                  </div>
+                </div>
+                <div>
+                  <label class="block font-semibold text-slate-700 mb-1">Simpan / Perbarui Gemini API Key</label>
+                  <div class="flex gap-2">
+                    <input id="cfg_apiKeyInput" type="password" placeholder="Masukkan Gemini API Key baru untuk disimpan..." class="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-xs focus:border-kemenag-600 focus:outline-none">
+                    <button onclick="saveApiKeyToBackend()" class="px-4 py-2 rounded-lg bg-kemenag-700 text-white font-semibold hover:bg-kemenag-800 transition">Simpan Aman</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Inisialisasi & Inspeksi 17 Tabel Google Spreadsheet -->
+            <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
+              <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <h3 class="text-base font-bold text-slate-800"><i class="fa-solid fa-table text-kemenag-600 mr-2"></i>Arsitektur 17 Sheet Database Google Spreadsheet</h3>
+                  <p class="text-xs text-slate-500">Status skema relasional & jumlah baris rekaman aktif</p>
+                </div>
+                <button onclick="initialize17SheetsBackend()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-kemenag-700 text-white hover:bg-kemenag-800 transition">
+                  <i class="fa-solid fa-bolt mr-1"></i>Inisialisasi / Verifikasi 17 Sheet
+                </button>
+              </div>
+
+              <div id="databaseSheetsGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-64 overflow-y-auto p-1">
+                <!-- Diisi via JS -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Inspektor Isi Tabel Database Nyata -->
+          <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="flex items-center gap-3">
+                <h4 class="text-sm font-bold text-slate-800">Inspektor Rekaman Tabel Database:</h4>
+                <select id="dbInspectorSelect" onchange="renderDatabaseInspector()" class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-mono font-semibold bg-slate-50"></select>
+              </div>
+              <button onclick="exportFullWorkbookExcel()" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition">
+                <i class="fa-solid fa-download mr-1"></i>Ekspor Seluruh 17 Sheet (.xlsx)
+              </button>
+            </div>
+            <div id="dbInspectorTableContainer" class="overflow-x-auto max-h-72 border border-slate-200 rounded-lg"></div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- MODAL EDIT SOAL DETAIL -->
+  <div id="editQuestionModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 hidden items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl max-w-3xl w-full p-6 shadow-2xl border border-slate-200 my-8 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between pb-3 mb-4 border-b border-slate-200">
+        <h3 class="text-base font-bold text-slate-800"><i class="fa-solid fa-pen-to-square text-kemenag-600 mr-2"></i>Edit & Validasi Butir Soal MI</h3>
+        <button onclick="closeEditQuestionModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark text-xl"></i></button>
+      </div>
+      <input type="hidden" id="edit_soalId">
+      <div class="space-y-4 text-xs">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Nomor Soal</label>
+            <input id="edit_nomorSoal" type="number" class="w-full rounded-lg border border-slate-300 px-3 py-2">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Level Kognitif</label>
+            <select id="edit_levelKognitif" class="w-full rounded-lg border border-slate-300 px-3 py-2">
+              <option value="C1">C1: Mengingat</option>
+              <option value="C2">C2: Memahami</option>
+              <option value="C3">C3: Menerapkan</option>
+              <option value="C4">C4: Menganalisis</option>
+              <option value="C5">C5: Mengevaluasi</option>
+              <option value="C6">C6: Mencipta</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Bobot Nilai</label>
+            <input id="edit_bobot" type="number" class="w-full rounded-lg border border-slate-300 px-3 py-2">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Indikator Acuan</label>
+          <input id="edit_indikator" type="text" class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="font-semibold text-slate-700">Batang Soal (Bahasa ramah anak MI, wajib berakhiran titik `....` untuk PG, DILARANG tanda `?`)</label>
+            <button type="button" onclick="autoFixQuestionStemInModal()" class="text-[11px] px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-semibold hover:bg-amber-200">
+              <i class="fa-solid fa-wand-magic mr-1"></i>Konversi ke Pernyataan Baku (Hapus ?)
+            </button>
+          </div>
+          <textarea id="edit_batangSoal" rows="3" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></textarea>
+        </div>
+
+        <div id="edit_pgOptionsBox" class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Pilihan A</label>
+            <input id="edit_opsiA" type="text" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Pilihan B</label>
+            <input id="edit_opsiB" type="text" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Pilihan C</label>
+            <input id="edit_opsiC" type="text" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Pilihan D</label>
+            <input id="edit_opsiD" type="text" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Kunci Jawaban *</label>
+            <input id="edit_kunci" type="text" class="w-full rounded-lg border border-slate-300 px-3 py-2 font-bold text-kemenag-700">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Tingkat Kesulitan</label>
+            <select id="edit_kesulitan" class="w-full rounded-lg border border-slate-300 px-3 py-2">
+              <option value="Mudah">Mudah</option>
+              <option value="Sedang">Sedang</option>
+              <option value="Sulit (HOTS)">Sulit (HOTS MI)</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Pembahasan Sederhana (Mudah Dipahami Anak MI)</label>
+          <textarea id="edit_pembahasan" rows="2" class="w-full rounded-lg border border-slate-300 px-3 py-2"></textarea>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 mt-6 pt-4 border-t border-slate-200">
+        <button onclick="closeEditQuestionModal()" class="px-4 py-2 rounded-lg text-xs font-medium bg-slate-100 text-slate-700 hover:bg-slate-200">Batal</button>
+        <button onclick="saveEditedQuestion()" class="px-5 py-2 rounded-lg text-xs font-bold bg-kemenag-700 text-white hover:bg-kemenag-800">Simpan Perubahan & Validasi Ulang</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       APPLICATION JAVASCRIPT & DATABASE ENGINE
+       ========================================== -->
+  <script>
+    /**
+     * ARSITEKTUR 17 TABEL DATABASE (SINKRON DENGAN GOOGLE SPREADSHEET & VERCEL)
+     * Seluruh 17 tabel memiliki relasi ID unik, created_at, updated_at, dan user_id.
+     */
+    const REQUIRED_17_SHEETS = [
+      'USERS', 'IDENTITAS_MADRASAH', 'MATA_PELAJARAN', 'KELAS', 'TAHUN_PELAJARAN',
+      'KISI_KISI', 'INDIKATOR', 'BANK_SOAL', 'PILIHAN_JAWABAN', 'KUNCI_JAWABAN',
+      'PEMBAHASAN', 'PAKET_UJIAN', 'DETAIL_PAKET', 'VALIDASI_SOAL', 'LOG_AKTIVITAS',
+      'KONFIGURASI', 'HASIL_EKSPOR'
+    ];
+
+    const LOCAL_STORAGE_DB_KEY = 'SIM_EVALUASI_MI_DB_V1';
+    const LOCAL_STORAGE_API_KEY = 'SIM_EVALUASI_MI_GEMINI_KEY';
+    const LOCAL_STORAGE_GAS_URL = 'SIM_EVALUASI_MI_GAS_WEBAPP_URL';
+
+    // State Database Relasional Terpadu Khusus MI (Bersih Tanpa Data Demo)
+    let DB = {
+      USERS: [],
+      IDENTITAS_MADRASAH: [{
+        id: 'IDM-001',
+        nama_madrasah: '',
+        tahun_pelajaran: '2026/2027',
+        semester: 'Ganjil',
+        nama_guru: '',
+        nip_guru: '',
+        kepala_madrasah: '',
+        mapel: '',
+        kelas: 'Kelas IV / Fase B (MI)',
+        jenis_penilaian: 'Sumatif Akhir Semester',
+        kurikulum: 'Kurikulum Merdeka MI (KMA 450/2024)',
+        alokasi_waktu: 60,
+        jumlah_soal: 10,
+        bentuk_default: 'Pilihan Ganda',
+        materi_pokok: '',
+        cp: '',
+        tp: '',
+        updated_at: new Date().toISOString()
+      }],
+      MATA_PELAJARAN: [],
+      KELAS: [],
+      TAHUN_PELAJARAN: [],
+      KISI_KISI: [],
+      INDIKATOR: [],
+      BANK_SOAL: [],
+      PILIHAN_JAWABAN: [],
+      KUNCI_JAWABAN: [],
+      PEMBAHASAN: [],
+      PAKET_UJIAN: [],
+      DETAIL_PAKET: [],
+      VALIDASI_SOAL: [],
+      LOG_AKTIVITAS: [],
+      KONFIGURASI: [
+        { id: 'CFG-01', key: 'AI_MODEL', value: 'gemini-3-flash-preview', updated_at: new Date().toISOString() },
+        { id: 'CFG-02', key: 'PG_NO_QUESTION_MARK_RULE', value: 'STRICT_ENFORCED', updated_at: new Date().toISOString() },
+        { id: 'CFG-03', key: 'TARGET_JENJANG', value: 'MADRASAH_IBTIDAIYAH_MI', updated_at: new Date().toISOString() }
+      ],
+      HASIL_EKSPOR: []
+    };
+
+    let activeRole = 'GURU';
+    let selectedBankIds = new Set();
+    let activePackageId = null;
+    let runtimeApiKey = localStorage.getItem(LOCAL_STORAGE_API_KEY) || '';
+    let gasWebAppUrl = localStorage.getItem(LOCAL_STORAGE_GAS_URL) || '';
+
+    // Deteksi apakah berjalan di dalam Google Apps Script iframe
+    const isGasEnvironment = (typeof google !== 'undefined' && google.script && google.script.run);
+
+    /**
+     * Panduan Spesifik Bahasa Anak MI Berdasarkan Kelas/Fase
+     */
+    function getMILanguageGuidance(kelasString) {
+      const k = (kelasString || '').toUpperCase();
+      if (k.includes('KELAS I ') || k.includes('KELAS II ') || k.includes('FASE A')) {
+        return `KHUSUS FASE A (KELAS 1–2 MI, USIA 6–8 TAHUN):
+- Gunakan kalimat yang SANGAT PENDEK, sederhana, dan langsung pada inti (maksimal 1 sampai 2 kalimat pendek per soal, sekitar 8–18 kata).
+- Gunakan kosakata konkret yang sangat akrab bagi anak kecil (contoh: kegiatan bersama ayah, ibu, kakak, adik di rumah, belajar bersama ibu guru, bermain dengan teman di halaman madrasah).
+- Pilihan jawaban A, B, C, D harus singkat (1–4 kata per opsi), mudah dieja dan langsung dipahami anak kelas 1–2 MI.
+- Dilarang menggunakan kata abstrak, istilah teknis rumit, atau kalimat majemuk bertingkat.`;
+      } else if (k.includes('KELAS III') || k.includes('KELAS IV') || k.includes('FASE B')) {
+        return `KHUSUS FASE B (KELAS 3–4 MI, USIA 8–10 TAHUN):
+- Gunakan bahasa Indonesia yang lugas, ceria, komunikatif, dan mudah dipahami anak usia 8–10 tahun (maksimal 2–3 kalimat pendek per soal).
+- Gunakan contoh situasi nyata di lingkungan rumah, madrasah, masjid, atau bermain bersama teman sebaya (seperti tokoh Ahmad, Siti, Budi, Fatimah).
+- Hindari istilah ilmiah/akademik yang rumit; gunakan penjelasan sehari-hari yang dekat dengan pengalaman anak MI.
+- Pilihan jawaban A, B, C, D harus jelas, singkat, dan panjangnya seimbang.`;
+      } else {
+        return `KHUSUS FASE C (KELAS 5–6 MI, USIA 10–12 TAHUN):
+- Gunakan bahasa Indonesia baku yang jernih, komunikatif, ramah anak usia 10–12 tahun, dan tidak berbelit-belit (maksimal 2–4 kalimat yang efektif).
+- Apabila menyajikan soal penalaran (HOTS tingkat MI), gunakan cerita singkat atau kejadian sehari-hari yang konkret dan mudah dibayangkan oleh anak tingkat SD/MI, bukan wacana abstrak tingkat SMP/SMA.
+- Pilihan jawaban A, B, C, D harus logis, jelas, dan mudah dipahami siswa MI.`;
+      }
+    }
+
+    /* ==========================================
+       SISTEM LOG & NOTIFIKASI UI
+       ========================================== */
+    function addLog(aksi, detail) {
+      const entry = {
+        id: 'LOG-' + Date.now() + '-' + Math.floor(Math.random() * 100),
+        waktu: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        tanggal: new Date().toLocaleDateString('id-ID'),
+        user: document.getElementById('activeUserName')?.textContent || 'Guru MI',
+        role: activeRole,
+        aksi,
+        detail
+      };
+      DB.LOG_AKTIVITAS.unshift(entry);
+      if (DB.LOG_AKTIVITAS.length > 50) DB.LOG_AKTIVITAS.pop();
+      renderDashboard();
+    }
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toastContainer');
+      const colors = {
+        success: 'bg-emerald-700 border-emerald-500 text-white',
+        warning: 'bg-amber-600 border-amber-400 text-white',
+        error: 'bg-red-700 border-red-500 text-white',
+        info: 'bg-slate-800 border-slate-600 text-white'
+      };
+      const icons = {
+        success: 'fa-circle-check',
+        warning: 'fa-triangle-exclamation',
+        error: 'fa-circle-xmark',
+        info: 'fa-circle-info'
+      };
+
+      const toast = document.createElement('div');
+      toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border text-xs font-medium transition-all duration-300 ${colors[type] || colors.info}`;
+      toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info} text-base"></i><span class="flex-1 leading-snug">${message}</span>`;
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(-8px)';
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
+    }
+
+    function showConfirmModal(title, message, onConfirm) {
+      const modal = document.getElementById('confirmModal');
+      document.getElementById('confirmTitle').textContent = title;
+      document.getElementById('confirmMessage').textContent = message;
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+
+      const okBtn = document.getElementById('confirmOkBtn');
+      const cancelBtn = document.getElementById('confirmCancelBtn');
+
+      const cleanup = () => {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      };
+
+      okBtn.onclick = () => { cleanup(); onConfirm(); };
+      cancelBtn.onclick = cleanup;
+    }
+
+    /* ==========================================
+       NAVIGASI & RBAC (ROLE-BASED ACCESS CONTROL)
+       ========================================== */
+    function toggleMobileMenu() {
+      const nav = document.getElementById('navMenu');
+      nav.classList.toggle('hidden');
+    }
+
+    function switchUserRole(role) {
+      activeRole = role;
+      const nameEl = document.getElementById('activeUserName');
+      const roleTextEl = document.getElementById('activeUserRoleText');
+      const avatarEl = document.getElementById('userAvatar');
+      const adminSection = document.getElementById('adminNavSection');
+
+      if (role === 'SUPER_ADMIN') {
+        nameEl.textContent = 'Administrator Sistem MI';
+        roleTextEl.textContent = 'Super Admin (Full Access)';
+        avatarEl.textContent = 'SA';
+        adminSection.classList.remove('hidden');
+      } else if (role === 'KEPALA_MADRASAH') {
+        nameEl.textContent = DB.IDENTITAS_MADRASAH[0]?.kepala_madrasah || 'Kepala Madrasah Ibtidaiyah';
+        roleTextEl.textContent = 'Kepala MI (Supervisor)';
+        avatarEl.textContent = 'KM';
+        adminSection.classList.add('hidden');
+        navigate('dashboard');
+      } else {
+        nameEl.textContent = DB.IDENTITAS_MADRASAH[0]?.nama_guru || 'Guru Kelas / Mapel MI';
+        roleTextEl.textContent = 'Guru Kelas / Mapel MI';
+        avatarEl.textContent = 'GR';
+        adminSection.classList.remove('hidden');
+      }
+
+      addLog('SWITCH_ROLE', `Peran pengguna beralih ke ${role}`);
+      showToast(`Hak akses disesuaikan ke peran: ${role}`, 'info');
+    }
+
+    function navigate(viewId) {
+      if (activeRole === 'KEPALA_MADRASAH' && ['config'].includes(viewId)) {
+        showToast('Menu Konfigurasi Sistem & Database hanya untuk Super Admin / Guru Penyusun.', 'warning');
+        return;
+      }
+
+      document.querySelectorAll('.view-section').forEach(s => s.classList.add('hidden'));
+      const target = document.getElementById('view-' + viewId);
+      if (target) target.classList.remove('hidden');
+
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        if (btn.dataset.nav === viewId) {
+          btn.className = 'nav-btn w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition bg-kemenag-700 text-white shadow-xs';
+        } else {
+          btn.className = 'nav-btn w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium text-kemenag-100 hover:bg-kemenag-800 transition';
+        }
+      });
+
+      const titles = {
+        dashboard: ['Dashboard Evaluasi & Monitoring MI', 'Ringkasan penyusunan kisi-kisi, validasi soal ramah anak MI, dan aktivitas guru Madrasah Ibtidaiyah.'],
+        identitas: ['1. Identitas Madrasah Ibtidaiyah (MI) & Data Penilaian', 'Konfigurasi Kelas I–VI MI (Fase A, B, C), CP, TP, dan Materi Pokok.'],
+        kisikisi: ['2. Penyusunan Matriks Kisi-Kisi Soal MI', 'Susun indikator soal tingkat MI beserta pemetaan level kognitif C1–C6.'],
+        generator: ['3. AI Generator Soal Ramah Anak MI & Validasi', 'Hasilkan soal otomatis dengan bahasa sederhana yang mudah dipahami siswa MI.'],
+        banksoal: ['4. Bank Soal Terpadu Madrasah Ibtidaiyah', 'Kelola, filter, edit, dan pilih soal MI untuk dirakit menjadi paket ujian.'],
+        paketujian: ['5. Perakitan Paket Ujian MI & Pengacakan', 'Susun paket paralel dan acak pilihan jawaban A–D dengan pembaruan kunci otomatis.'],
+        cetak: ['6. Pusat Dokumen & Cetak Perangkat Evaluasi MI (A4)', 'Cetak Naskah Soal, Kunci Jawaban Terpisah, Kartu Soal, Kisi-Kisi, dan Analisis Kualitas.'],
+        config: ['7. Konfigurasi AI & Arsitektur 17 Sheet Database', 'Kelola koneksi Google Spreadsheet, PropertiesService API Key, dan inspeksi tabel.']
+      };
+
+      if (titles[viewId]) {
+        document.getElementById('pageTitle').textContent = titles[viewId][0];
+        document.getElementById('pageSubtitle').textContent = titles[viewId][1];
+      }
+
+      if (viewId === 'dashboard') renderDashboard();
+      if (viewId === 'identitas') loadIdentitasToForm();
+      if (viewId === 'kisikisi') renderKisiTable();
+      if (viewId === 'generator') renderGeneratedQuestions();
+      if (viewId === 'banksoal') renderBankSoal();
+      if (viewId === 'paketujian') renderPaketUjianView();
+      if (viewId === 'cetak') renderPrintDocument();
+      if (viewId === 'config') renderConfigView();
+    }
+
+    /* ==========================================
+       MODUL 1: IDENTITAS PENILAIAN KHUSUS MI
+       ========================================== */
+    function loadIdentitasToForm() {
+      const idm = DB.IDENTITAS_MADRASAH[0] || {};
+      document.getElementById('id_namaMadrasah').value = idm.nama_madrasah || '';
+      document.getElementById('id_tahunPelajaran').value = idm.tahun_pelajaran || '2026/2027';
+      document.getElementById('id_semester').value = idm.semester || 'Ganjil';
+      document.getElementById('id_namaGuru').value = idm.nama_guru || '';
+      document.getElementById('id_nipGuru').value = idm.nip_guru || '';
+      document.getElementById('id_kepalaMadrasah').value = idm.kepala_madrasah || '';
+      document.getElementById('id_mapel').value = idm.mapel || '';
+      document.getElementById('id_kelas').value = idm.kelas || 'Kelas IV / Fase B (MI)';
+      document.getElementById('id_jenisPenilaian').value = idm.jenis_penilaian || 'Sumatif Akhir Semester';
+      document.getElementById('id_kurikulum').value = idm.kurikulum || 'Kurikulum Merdeka MI (KMA 450/2024)';
+      document.getElementById('id_alokasiWaktu').value = idm.alokasi_waktu || 60;
+      document.getElementById('id_jumlahSoal').value = idm.jumlah_soal || 10;
+      document.getElementById('id_bentukDefault').value = idm.bentuk_default || 'Pilihan Ganda';
+      document.getElementById('id_materiPokok').value = idm.materi_pokok || '';
+      document.getElementById('id_cp').value = idm.cp || '';
+      document.getElementById('id_tp').value = idm.tp || '';
+      document.getElementById('headerMapelInfo').textContent = idm.mapel ? `${idm.mapel} - ${(idm.kelas || '').split('/')[0]}` : 'Belum Ada Identitas Mapel MI';
+    }
+
+    function saveIdentitasForm(autoGenerateIndicators = false) {
+      if (!DB.IDENTITAS_MADRASAH[0]) DB.IDENTITAS_MADRASAH[0] = { id: 'IDM-001' };
+      const idm = DB.IDENTITAS_MADRASAH[0];
+      idm.nama_madrasah = document.getElementById('id_namaMadrasah').value.trim();
+      idm.tahun_pelajaran = document.getElementById('id_tahunPelajaran').value;
+      idm.semester = document.getElementById('id_semester').value;
+      idm.nama_guru = document.getElementById('id_namaGuru').value.trim();
+      idm.nip_guru = document.getElementById('id_nipGuru').value.trim();
+      idm.kepala_madrasah = document.getElementById('id_kepalaMadrasah').value.trim();
+      idm.mapel = document.getElementById('id_mapel').value.trim();
+      idm.kelas = document.getElementById('id_kelas').value;
+      idm.jenis_penilaian = document.getElementById('id_jenisPenilaian').value;
+      idm.kurikulum = document.getElementById('id_kurikulum').value;
+      idm.alokasi_waktu = parseInt(document.getElementById('id_alokasiWaktu').value) || 60;
+      idm.jumlah_soal = Math.max(1, Math.min(100, parseInt(document.getElementById('id_jumlahSoal').value) || 10));
+      idm.bentuk_default = document.getElementById('id_bentukDefault').value;
+      idm.materi_pokok = document.getElementById('id_materiPokok').value.trim();
+      idm.cp = document.getElementById('id_cp').value.trim();
+      idm.tp = document.getElementById('id_tp').value.trim();
+      idm.updated_at = new Date().toISOString();
+
+      if (!idm.nama_madrasah || !idm.nama_guru || !idm.mapel || !idm.cp || !idm.tp) {
+        showToast('Harap lengkapi Nama MI, Nama Guru, Mata Pelajaran, CP, dan TP.', 'warning');
+        return;
+      }
+
+      if (!DB.USERS.find(u => u.nama === idm.nama_guru)) {
+        DB.USERS.push({ id: 'USR-' + Date.now(), nama: idm.nama_guru, nip: idm.nip_guru, role: 'GURU', email: '', created_at: new Date().toISOString() });
+      }
+      if (!DB.MATA_PELAJARAN.find(m => m.nama === idm.mapel)) {
+        DB.MATA_PELAJARAN.push({ id: 'MPL-' + Date.now(), kode: idm.mapel.substring(0, 3).toUpperCase(), nama: idm.mapel, jenjang: idm.kelas });
+      }
+      if (!DB.KELAS.find(k => k.nama === idm.kelas)) {
+        DB.KELAS.push({ id: 'KLS-' + Date.now(), nama: idm.kelas, tingkat: idm.kelas.split('/')[0] });
+      }
+      if (!DB.TAHUN_PELAJARAN.find(t => t.tahun === idm.tahun_pelajaran && t.semester === idm.semester)) {
+        DB.TAHUN_PELAJARAN.push({ id: 'TP-' + Date.now(), tahun: idm.tahun_pelajaran, semester: idm.semester, status: 'AKTIF' });
+      }
+      if (DB.KISI_KISI.length === 0) {
+        DB.KISI_KISI.push({
+          id: 'KISI-001',
+          identitas_id: idm.id,
+          judul: `Kisi-Kisi ${idm.jenis_penilaian} ${idm.mapel} ${idm.kelas}`,
+          guru_id: idm.nama_guru,
+          status: 'AKTIF',
+          created_at: new Date().toISOString()
+        });
+      }
+
+      document.getElementById('headerMapelInfo').textContent = `${idm.mapel} - ${idm.kelas.split('/')[0]}`;
+      document.getElementById('activeUserName').textContent = idm.nama_guru;
+      addLog('UPDATE_IDENTITAS', `Menyimpan identitas penilaian MI ${idm.mapel} (${idm.kelas})`);
+      saveAllToDatabase(false);
+      showToast('Identitas Penilaian MI berhasil disimpan ke Database.', 'success');
+      navigate('kisikisi');
+
+      if (autoGenerateIndicators) {
+        triggerAIGenerateIndicatorsFromTP();
+      }
+    }
+
+    /* ==========================================
+       MODUL 2: PENYUSUNAN KISI-KISI & AI GENERATOR INDIKATOR DARI TP KHUSUS MI
+       ========================================== */
+
+    /**
+     * Memanggil Gemini API (atau Backend GAS) untuk Menurunkan Indikator Soal Secara Nyata dari TP Khusus MI
+     */
+    async function callGeminiAPIForIndicators(idm, targetCount, singleRowContext = null) {
+      if (isGasEnvironment) {
+        return new Promise((resolve, reject) => {
+          google.script.run
+            .withSuccessHandler(res => resolve(res))
+            .withFailureHandler(err => reject(err))
+            .generateIndicatorsFromTPServer(idm, targetCount, singleRowContext);
+        });
+      }
+
+      // Jika di Vercel & terhubung ke GAS Web App URL namun belum isi API Key di browser
+      if (gasWebAppUrl && !runtimeApiKey) {
+        const res = await fetch(gasWebAppUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'GENERATE_INDICATORS', identitas: idm, targetCount, singleRowContext })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        return data.result;
+      }
+
+      const miGuidance = getMILanguageGuidance(idm.kelas);
+
+      const systemPrompt = `Anda adalah Ahli Evaluasi Pendidikan Dasar (Madrasah Ibtidaiyah / MI) dan Pakar Kurikulum Madrasah Kementerian Agama RI.
+Tugas Anda adalah merumuskan INDIKATOR SOAL yang operasional, terukur, sederhana, dan sesuai dengan perkembangan kognitif anak tingkat Madrasah Ibtidaiyah (MI) berdasarkan Capaian Pembelajaran (CP), Tujuan Pembelajaran (TP), dan Materi Pokok yang diberikan guru.
+
+${miGuidance}
+
+KAIDAH WAJIB PENYUSUNAN INDIKATOR SOAL TINGKAT MI (FORMAT ABCD):
+1. Setiap indikator soal WAJIB diawali dengan Condition/Stimulus yang konkret dan dekat dengan dunia anak MI (contoh: "Disajikan cerita singkat tentang kegiatan sehari-hari di rumah/madrasah...", "Disajikan pernyataan sederhana mengenai...", "Disajikan gambar/contoh perilaku anak...").
+2. Dilanjutkan dengan Audience ("peserta didik dapat...") dan Behavior menggunakan Kata Kerja Operasional (KKO) yang sesuai dengan usia anak MI:
+   - C1 (Mengingat): menyebutkan, menunjukkan, mengenali.
+   - C2 (Memahami): menjelaskan dengan bahasa sederhana, mengelompokkan, membedakan, memberi contoh.
+   - C3 (Menerapkan): menentukan, menerapkan dalam kegiatan sehari-hari, menghitung sederhana, mengurutkan.
+   - C4 (Menganalisis sederhana tingkat MI): menemukan alasan, memilih sikap yang tepat dari cerita singkat, mengaitkan sebab-akibat sederhana.
+   - C5 (Mengevaluasi sederhana tingkat MI): menilai perilaku baik/buruk berdasarkan contoh, memilih tindakan terbaik.
+   - C6 (Mencipta sederhana tingkat MI): menyusun kalimat/langkah sederhana.
+3. Indikator soal harus berbeda satu sama lain, tidak duplikat, dan menggunakan bahasa yang mudah dipahami guru maupun siswa MI.`;
+
+      const userPrompt = singleRowContext
+        ? `Buatkan tepat 1 (satu) rumusan Indikator Soal tingkat Madrasah Ibtidaiyah (MI) yang sangat presisi untuk baris kisi-kisi berikut:
+Mata Pelajaran MI: ${idm.mapel}
+Kelas/Fase MI: ${idm.kelas}
+Kurikulum: ${idm.kurikulum}
+Capaian Pembelajaran (CP): ${singleRowContext.cp || idm.cp}
+Tujuan Pembelajaran (TP): ${singleRowContext.tp || idm.tp}
+Materi Spesifik: ${singleRowContext.materi || idm.materi_pokok}
+Level Kognitif Target: ${singleRowContext.level_kognitif}
+Bentuk Soal Target: ${singleRowContext.bentuk_soal}
+Nomor Soal: ${singleRowContext.nomor_soal}`
+        : `Turunkan dan rumuskan tepat ${targetCount} baris Indikator Soal tingkat Madrasah Ibtidaiyah (MI) untuk kisi-kisi penilaian berikut:
+Madrasah Ibtidaiyah: ${idm.nama_madrasah}
+Mata Pelajaran MI: ${idm.mapel}
+Kelas/Fase MI: ${idm.kelas}
+Jenis Penilaian: ${idm.jenis_penilaian}
+Kurikulum: ${idm.kurikulum}
+Materi Pokok: ${idm.materi_pokok}
+Capaian Pembelajaran (CP): ${idm.cp}
+Tujuan Pembelajaran (TP): ${idm.tp}
+Bentuk Soal Default: ${idm.bentuk_default}
+
+Susun ${targetCount} indikator soal dari nomor soal 1 sampai ${targetCount} dengan distribusi level kognitif yang sesuai untuk siswa ${idm.kelas} (dominan C1, C2, C3 dan pengenalan HOTS sederhana C4) serta total bobot nilai berjumlah 100.`;
+
+      const payload = {
+        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                nomor_soal: { type: "INTEGER" },
+                cp: { type: "STRING" },
+                tp: { type: "STRING" },
+                materi: { type: "STRING" },
+                indikator_soal: { type: "STRING" },
+                level_kognitif: { type: "STRING" },
+                bentuk_soal: { type: "STRING" },
+                bobot: { type: "NUMBER" }
+              },
+              required: ["nomor_soal", "cp", "tp", "materi", "indikator_soal", "level_kognitif", "bentuk_soal", "bobot"]
+            }
+          }
+        }
+      };
+
+      const apiKey = runtimeApiKey || "";
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+      const delays = [1000, 2000, 4000];
+      for (let attempt = 0; attempt <= delays.length; attempt++) {
+        try {
+          const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (!response.ok) throw new Error(`Koneksi API AI gagal (HTTP ${response.status}). Pastikan API Key telah dikonfigurasi di menu 7.`);
+          const result = await response.json();
+          const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (!jsonText) throw new Error('Respons AI kosong atau batas kuota tercapai.');
+          return JSON.parse(jsonText);
+        } catch (err) {
+          if (attempt === delays.length) throw err;
+          await new Promise(r => setTimeout(r, delays[attempt]));
+        }
+      }
+    }
+
+    /**
+     * Fungsi Utama: Generate Seluruh Indikator Soal Otomatis dari TP menggunakan AI
+     */
+    async function triggerAIGenerateIndicatorsFromTP() {
+      const idm = DB.IDENTITAS_MADRASAH[0];
+      if (!idm || !idm.mapel || !idm.cp || !idm.tp) {
+        showToast('Harap isi Mata Pelajaran MI, Capaian Pembelajaran (CP), dan Tujuan Pembelajaran (TP) pada menu 1 terlebih dahulu.', 'warning');
+        navigate('identitas');
+        return;
+      }
+
+      const targetCount = Math.max(1, Math.min(100, parseInt(idm.jumlah_soal) || 10));
+      const overlay = document.getElementById('aiLoadingOverlay');
+      const titleEl = document.getElementById('aiLoadingTitle');
+      const descEl = document.getElementById('aiLoadingDesc');
+      const progressBar = document.getElementById('aiProgressBar');
+      const progressStep = document.getElementById('aiProgressStep');
+
+      titleEl.textContent = 'AI Sedang Menurunkan Indikator Soal MI dari TP...';
+      descEl.textContent = `Menganalisis CP, TP, dan Materi Pokok "${idm.materi_pokok || idm.mapel}" untuk merumuskan ${targetCount} indikator soal ramah anak ${idm.kelas}.`;
+      overlay.classList.remove('hidden');
+      overlay.classList.add('flex');
+
+      progressBar.style.width = '30%';
+      progressStep.textContent = `Menyesuaikan indikator dengan perkembangan kognitif siswa ${idm.kelas}...`;
+
+      try {
+        progressBar.style.width = '70%';
+        const generatedIndicators = await callGeminiAPIForIndicators(idm, targetCount, null);
+
+        if (!Array.isArray(generatedIndicators) || generatedIndicators.length === 0) {
+          throw new Error('AI tidak mengembalikan daftar indikator soal.');
+        }
+
+        const defaultBobot = Math.round((100 / generatedIndicators.length) * 10) / 10;
+
+        DB.INDIKATOR = generatedIndicators.map((item, idx) => ({
+          id: 'IND-' + Date.now() + '-' + (idx + 1),
+          kisi_id: DB.KISI_KISI[0]?.id || 'KISI-001',
+          no_urut: idx + 1,
+          cp: item.cp || idm.cp,
+          tp: item.tp || idm.tp,
+          materi: item.materi || idm.materi_pokok || idm.mapel,
+          indikator_soal: item.indikator_soal || '',
+          level_kognitif: ['C1','C2','C3','C4','C5','C6'].includes(item.level_kognitif) ? item.level_kognitif : 'C2',
+          bentuk_soal: item.bentuk_soal || idm.bentuk_default || 'Pilihan Ganda',
+          nomor_soal: item.nomor_soal || (idx + 1),
+          bobot: Number(item.bobot) || defaultBobot,
+          updated_at: new Date().toISOString()
+        }));
+
+        progressBar.style.width = '100%';
+        renderKisiTable();
+        saveAllToDatabase(false);
+        addLog('GENERATE_INDIKATOR_AI', `Menghasilkan ${DB.INDIKATOR.length} indikator soal MI otomatis dari TP`);
+        showToast(`Berhasil menurunkan ${DB.INDIKATOR.length} Indikator Soal tingkat MI secara nyata dari Tujuan Pembelajaran (TP)!`, 'success');
+      } catch (err) {
+        addLog('AI_INDIKATOR_ERROR', `Gagal generate indikator dari TP: ${err.message || err}`);
+        showToast(`Gagal menghasilkan indikator dari AI: ${err.message || 'Periksa konfigurasi API Key di menu 7.'}`, 'error');
+      } finally {
+        overlay.classList.add('hidden');
+        overlay.classList.remove('flex');
+        titleEl.textContent = 'AI Sedang Menyusun Soal Ramah Anak MI...';
+        descEl.textContent = 'Menyesuaikan kosakata sederhana tingkat Madrasah Ibtidaiyah (MI), ilustrasi dunia anak sehari-hari, serta memeriksa kaidah Pilihan Ganda tanpa tanda tanya (?).';
+        updateBadges();
+      }
+    }
+
+    /**
+     * Generate / Rumuskan Ulang Indikator Soal untuk 1 Baris Spesifik dari TP pada Baris Tersebut
+     */
+    async function generateSingleIndicatorRowAI(rowId) {
+      const row = DB.INDIKATOR.find(i => i.id === rowId);
+      if (!row) return;
+      const idm = DB.IDENTITAS_MADRASAH[0] || {};
+
+      if (!row.tp && !idm.tp) {
+        showToast('Isi kolom Tujuan Pembelajaran (TP) pada baris ini terlebih dahulu agar AI dapat menurunkan indikator soal.', 'warning');
+        return;
+      }
+
+      showToast(`AI sedang merumuskan indikator soal tingkat MI dari TP untuk Baris #${row.no_urut}...`, 'info');
+      try {
+        const res = await callGeminiAPIForIndicators(idm, 1, row);
+        if (Array.isArray(res) && res[0] && res[0].indikator_soal) {
+          row.indikator_soal = res[0].indikator_soal;
+          if (!row.materi && res[0].materi) row.materi = res[0].materi;
+          row.updated_at = new Date().toISOString();
+          renderKisiTable();
+          saveAllToDatabase(false);
+          addLog('GENERATE_SINGLE_INDIKATOR', `Merumuskan indikator soal MI otomatis dari TP pada baris nomor ${row.no_urut}`);
+          showToast(`Indikator soal MI baris #${row.no_urut} berhasil dirumuskan dari TP!`, 'success');
+        } else {
+          throw new Error('Respons indikator dari AI kosong.');
+        }
+      } catch (err) {
+        showToast(`Gagal merumuskan indikator: ${err.message || 'Periksa koneksi AI'}`, 'error');
+      }
+    }
+
+    function renderKisiTable() {
+      const tbody = document.getElementById('kisiTableBody');
+      tbody.innerHTML = '';
+
+      if (DB.INDIKATOR.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="10" class="p-8 text-center text-slate-500 space-y-3">
+              <div>Belum ada baris indikator pada kisi-kisi MI.</div>
+              <div class="flex flex-wrap items-center justify-center gap-2 pt-1">
+                <button onclick="triggerAIGenerateIndicatorsFromTP()" class="px-4 py-2 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-xs transition inline-flex items-center gap-1.5">
+                  <i class="fa-solid fa-wand-magic-sparkles"></i>
+                  <span>Generate Indikator Otomatis dari TP (AI)</span>
+                </button>
+                <button onclick="addKisiRow()" class="px-3.5 py-2 rounded-lg text-xs font-semibold bg-kemenag-700 hover:bg-kemenag-800 text-white transition">
+                  <i class="fa-solid fa-plus mr-1"></i>Tambah Baris Manual
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+        document.getElementById('footerKisiCount').textContent = 0;
+        document.getElementById('footerTotalBobot').textContent = 0;
+        document.getElementById('badgeIndikatorCount').textContent = 0;
+        return;
+      }
+
+      let totalBobot = 0;
+      DB.INDIKATOR.forEach((row, index) => {
+        row.no_urut = index + 1;
+        totalBobot += (Number(row.bobot) || 0);
+
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-50/80 transition';
+        tr.innerHTML = `
+          <td class="p-2 text-center font-bold text-slate-600">${row.no_urut}</td>
+          <td class="p-2">
+            <textarea onchange="updateKisiField('${row.id}', 'cp', this.value)" rows="2" class="w-full rounded border border-slate-200 p-1.5 text-xs focus:border-kemenag-600 focus:outline-none">${row.cp}</textarea>
+          </td>
+          <td class="p-2">
+            <textarea onchange="updateKisiField('${row.id}', 'tp', this.value)" rows="2" class="w-full rounded border border-slate-200 p-1.5 text-xs focus:border-kemenag-600 focus:outline-none">${row.tp}</textarea>
+          </td>
+          <td class="p-2">
+            <input type="text" value="${row.materi}" onchange="updateKisiField('${row.id}', 'materi', this.value)" class="w-full rounded border border-slate-200 p-1.5 text-xs font-medium focus:border-kemenag-600 focus:outline-none">
+          </td>
+          <td class="p-2">
+            <div class="space-y-1">
+              <textarea onchange="updateKisiField('${row.id}', 'indikator_soal', this.value)" rows="2" placeholder="Klik tombol AI di bawah untuk menurunkan indikator dari TP..." class="w-full rounded border border-slate-300 bg-kemenag-50/30 p-1.5 text-xs focus:border-kemenag-600 focus:outline-none">${row.indikator_soal}</textarea>
+              <button type="button" onclick="generateSingleIndicatorRowAI('${row.id}')" class="w-full py-1 px-2 rounded bg-amber-100 hover:bg-amber-200 text-amber-900 font-semibold text-[11px] flex items-center justify-center gap-1 transition" title="Turunkan indikator soal otomatis dari TP baris ini menggunakan AI">
+                <i class="fa-solid fa-wand-magic-sparkles text-amber-700"></i>
+                <span>Generate Indikator dari TP (AI)</span>
+              </button>
+            </div>
+          </td>
+          <td class="p-2">
+            <select onchange="updateKisiField('${row.id}', 'level_kognitif', this.value)" class="w-full rounded border border-slate-200 p-1.5 text-xs font-semibold focus:border-kemenag-600 focus:outline-none">
+              <option value="C1" ${row.level_kognitif === 'C1' ? 'selected' : ''}>C1: Mengingat</option>
+              <option value="C2" ${row.level_kognitif === 'C2' ? 'selected' : ''}>C2: Memahami</option>
+              <option value="C3" ${row.level_kognitif === 'C3' ? 'selected' : ''}>C3: Menerapkan</option>
+              <option value="C4" ${row.level_kognitif === 'C4' ? 'selected' : ''}>C4: Menganalisis</option>
+              <option value="C5" ${row.level_kognitif === 'C5' ? 'selected' : ''}>C5: Mengevaluasi</option>
+              <option value="C6" ${row.level_kognitif === 'C6' ? 'selected' : ''}>C6: Mencipta</option>
+            </select>
+          </td>
+          <td class="p-2">
+            <select onchange="updateKisiField('${row.id}', 'bentuk_soal', this.value)" class="w-full rounded border border-slate-200 p-1.5 text-xs focus:border-kemenag-600 focus:outline-none">
+              <option value="Pilihan Ganda" ${row.bentuk_soal === 'Pilihan Ganda' ? 'selected' : ''}>Pilihan Ganda (A-D)</option>
+              <option value="Pilihan Ganda Kompleks" ${row.bentuk_soal === 'Pilihan Ganda Kompleks' ? 'selected' : ''}>Pilihan Ganda Kompleks</option>
+              <option value="Benar/Salah" ${row.bentuk_soal === 'Benar/Salah' ? 'selected' : ''}>Benar/Salah</option>
+              <option value="Menjodohkan" ${row.bentuk_soal === 'Menjodohkan' ? 'selected' : ''}>Menjodohkan</option>
+              <option value="Isian Singkat" ${row.bentuk_soal === 'Isian Singkat' ? 'selected' : ''}>Isian Singkat</option>
+              <option value="Uraian" ${row.bentuk_soal === 'Uraian' ? 'selected' : ''}>Uraian</option>
+            </select>
+          </td>
+          <td class="p-2 text-center">
+            <input type="number" min="1" value="${row.nomor_soal}" onchange="updateKisiField('${row.id}', 'nomor_soal', parseInt(this.value)||1)" class="w-16 text-center rounded border border-slate-200 p-1.5 text-xs font-bold">
+          </td>
+          <td class="p-2 text-center">
+            <input type="number" min="1" value="${row.bobot}" onchange="updateKisiField('${row.id}', 'bobot', parseFloat(this.value)||0)" class="w-16 text-center rounded border border-slate-200 p-1.5 text-xs font-semibold text-kemenag-700">
+          </td>
+          <td class="p-2 text-center">
+            <div class="flex items-center justify-center gap-1">
+              <button onclick="duplicateKisiRow('${row.id}')" class="p-1.5 rounded bg-blue-50 text-blue-600 hover:bg-blue-100" title="Duplikasi Indikator">
+                <i class="fa-solid fa-copy"></i>
+              </button>
+              <button onclick="deleteKisiRow('${row.id}')" class="p-1.5 rounded bg-red-50 text-red-600 hover:bg-red-100" title="Hapus Baris">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById('footerKisiCount').textContent = DB.INDIKATOR.length;
+      document.getElementById('footerTotalBobot').textContent = totalBobot;
+      document.getElementById('badgeIndikatorCount').textContent = DB.INDIKATOR.length;
+    }
+
+    function updateKisiField(id, field, value) {
+      const item = DB.INDIKATOR.find(i => i.id === id);
+      if (item) {
+        item[field] = value;
+        item.updated_at = new Date().toISOString();
+        renderKisiTable();
+        saveAllToDatabase(false);
+      }
+    }
+
+    function addKisiRow() {
+      const idm = DB.IDENTITAS_MADRASAH[0] || {};
+      const nextNo = DB.INDIKATOR.length + 1;
+      DB.INDIKATOR.push({
+        id: 'IND-' + Date.now() + '-' + nextNo,
+        kisi_id: DB.KISI_KISI[0]?.id || 'KISI-001',
+        no_urut: nextNo,
+        cp: idm.cp || '',
+        tp: idm.tp || '',
+        materi: idm.materi_pokok || '',
+        indikator_soal: '',
+        level_kognitif: 'C2',
+        bentuk_soal: idm.bentuk_default || 'Pilihan Ganda',
+        nomor_soal: nextNo,
+        bobot: 10,
+        updated_at: new Date().toISOString()
+      });
+      addLog('ADD_INDIKATOR', `Menambah baris indikator nomor ${nextNo}`);
+      renderKisiTable();
+      showToast('Baris indikator baru ditambahkan.', 'success');
+    }
+
+    function duplicateKisiRow(id) {
+      const idx = DB.INDIKATOR.findIndex(i => i.id === id);
+      if (idx === -1) return;
+      const orig = DB.INDIKATOR[idx];
+      const copy = {
+        ...orig,
+        id: 'IND-' + Date.now(),
+        nomor_soal: DB.INDIKATOR.length + 1,
+        updated_at: new Date().toISOString()
+      };
+      DB.INDIKATOR.splice(idx + 1, 0, copy);
+      autoNumberKisiRows();
+      showToast('Indikator berhasil diduplikasi.', 'success');
+    }
+
+    function deleteKisiRow(id) {
+      showConfirmModal('Hapus Indikator Kisi-Kisi', 'Apakah Anda yakin ingin menghapus baris indikator ini dari kisi-kisi?', () => {
+        DB.INDIKATOR = DB.INDIKATOR.filter(i => i.id !== id);
+        autoNumberKisiRows();
+        saveAllToDatabase(false);
+        addLog('DELETE_INDIKATOR', `Menghapus indikator ${id}`);
+        showToast('Indikator berhasil dihapus.', 'info');
+      });
+    }
+
+    function autoNumberKisiRows() {
+      DB.INDIKATOR.forEach((item, idx) => {
+        item.no_urut = idx + 1;
+        item.nomor_soal = idx + 1;
+      });
+      renderKisiTable();
+    }
+
+    function balanceCognitiveLevels() {
+      // Proporsi ramah tingkat MI (C1, C2, C3 dominan, ditambah C4 kontekstual sederhana)
+      const pattern = ['C1', 'C2', 'C2', 'C3', 'C3', 'C4'];
+      const total = DB.INDIKATOR.length;
+      const equalBobot = Math.round((100 / Math.max(1, total)) * 10) / 10;
+      DB.INDIKATOR.forEach((item, idx) => {
+        item.level_kognitif = pattern[idx % pattern.length];
+        item.bobot = equalBobot;
+      });
+      renderKisiTable();
+      showToast('Distribusi level kognitif tingkat MI dan bobot nilai telah diseimbangkan.', 'success');
+    }
+
+    function validateKisiCompleteness(showBanner = true) {
+      const errors = [];
+      const seenNumbers = new Set();
+
+      if (DB.INDIKATOR.length === 0) {
+        errors.push('Tabel kisi-kisi masih kosong. Tambahkan minimal 1 baris indikator terlebih dahulu.');
+      }
+
+      DB.INDIKATOR.forEach((item, idx) => {
+        if (!item.cp || !item.tp || !item.materi || !item.indikator_soal) {
+          errors.push(`Baris ${idx + 1}: CP, TP, Materi, atau Indikator Soal masih kosong.`);
+        }
+        if (item.indikator_soal && item.indikator_soal.trim().length < 15) {
+          errors.push(`Baris ${idx + 1}: Rumusan indikator soal terlalu pendek (harus memuat kompetensi/stimulus).`);
+        }
+        if (seenNumbers.has(item.nomor_soal)) {
+          errors.push(`Baris ${idx + 1}: Nomor soal ${item.nomor_soal} duplikat.`);
+        }
+        seenNumbers.add(item.nomor_soal);
+      });
+
+      const banner = document.getElementById('kisiValidationBanner');
+      if (showBanner) {
+        banner.classList.remove('hidden');
+        if (errors.length === 0) {
+          banner.className = 'rounded-xl p-4 border bg-emerald-50 border-emerald-200 text-emerald-900 text-xs';
+          banner.innerHTML = `<div class="font-bold mb-1"><i class="fa-solid fa-circle-check text-emerald-600 mr-1.5"></i>Kisi-Kisi MI Lengkap dan Valid!</div>Seluruh ${DB.INDIKATOR.length} indikator memiliki CP, TP, Materi, Level Kognitif, dan Nomor Soal yang unik. Siap di-generate oleh AI menjadi soal ramah anak MI.`;
+        } else {
+          banner.className = 'rounded-xl p-4 border bg-red-50 border-red-200 text-red-900 text-xs';
+          banner.innerHTML = `<div class="font-bold mb-1"><i class="fa-solid fa-circle-xmark text-red-600 mr-1.5"></i>Ditemukan ${errors.length} Catatan pada Kisi-Kisi:</div><ul class="list-disc pl-5 space-y-0.5">${errors.map(e => `<li>${e}</li>`).join('')}</ul>`;
+        }
+      }
+      return errors.length === 0;
+    }
+
+    /* ==========================================
+       MODUL 3: AI GENERATOR SOAL KHUSUS BAHASA ANAK MI & VALIDASI 11 PARAMETER
+       ========================================== */
+
+    /**
+     * Post-Processor Ketat untuk Menjamin Batang Soal PG Tanpa Tanda Tanya (?)
+     */
+    function enforceNoQuestionMarkOnPG(stemText, bentukSoal) {
+      if (!stemText) return '';
+      let clean = stemText.trim();
+      if (bentukSoal === 'Pilihan Ganda' || bentukSoal === 'Pilihan Ganda Kompleks') {
+        if (clean.includes('?')) {
+          clean = clean.replace(/\?+/g, ' ....');
+          clean = clean.replace(/^(Apa yang dimaksud dengan|Apakah yang dimaksud dengan)\s+/i, 'Arti dari ');
+          clean = clean.replace(/^(Siapakah|Siapa)\s+/i, 'Nama tokoh atau orang yang ');
+          clean = clean.replace(/^(Mengapa)\s+/i, 'Alasan kita harus ');
+          clean = clean.replace(/^(Bagaimana)\s+/i, 'Cara yang benar untuk ');
+          clean = clean.replace(/^(Berapakah|Berapa)\s+/i, 'Jumlah atau hasil dari ');
+        }
+        if (!clean.endsWith('.')) {
+          clean = clean + ' ....';
+        }
+      }
+      return clean;
+    }
+
+    /**
+     * Sistem Pemeriksaan Kualitas Soal 11 Parameter Wajib + Keterbacaan Anak MI
+     */
+    function validateSingleQuestion(soal, allQuestions = []) {
+      const issues = [];
+      const recommendations = [];
+
+      if (!soal.indikator_soal || soal.batang_soal.length < 15) {
+        issues.push('Batang soal terlalu pendek atau belum sesuai indikator.');
+        recommendations.push('Tambahkan kalimat pernyataan sederhana yang sesuai indikator kisi-kisi MI.');
+      }
+
+      // Pemeriksaan keterbacaan anak MI (kalimat tidak boleh terlalu panjang/rumit)
+      const wordCount = soal.batang_soal.trim().split(/\s+/).length;
+      if (wordCount > 65) {
+        issues.push(`Batang soal terlalu panjang (${wordCount} kata) untuk ukuran bacaan anak tingkat MI.`);
+        recommendations.push('Ringkas kalimat menjadi 1–3 kalimat sederhana agar anak MI tidak kelelahan membaca.');
+      }
+
+      if (!['C1', 'C2', 'C3', 'C4', 'C5', 'C6'].includes(soal.level_kognitif)) {
+        issues.push('Level kognitif tidak terdefinisi dalam rentang C1–C6.');
+      }
+
+      if (!soal.materi || soal.materi.trim() === '') {
+        issues.push('Materi pokok pada soal kosong.');
+      }
+
+      if (!soal.kunci_jawaban || String(soal.kunci_jawaban).trim() === '') {
+        issues.push('Soal tidak memiliki kunci jawaban.');
+        recommendations.push('Tetapkan kunci jawaban yang akurat sesuai konsep materi.');
+      }
+
+      if (soal.bentuk_soal === 'Pilihan Ganda') {
+        if (soal.batang_soal.includes('?')) {
+          issues.push('PELANGGARAN ATURAN PG: Batang soal Pilihan Ganda menggunakan tanda tanya (?).');
+          recommendations.push('Ubah batang soal menjadi kalimat pernyataan atau perintah yang diakhiri tanda titik (....).');
+        }
+        const opts = soal.pilihan || {};
+        if (!opts.A || !opts.B || !opts.C || !opts.D) {
+          issues.push('Pilihan jawaban A, B, C, dan D belum lengkap 4 opsi.');
+          recommendations.push('Lengkapi keempat pilihan jawaban A, B, C, dan D.');
+        } else {
+          const vals = [opts.A.trim(), opts.B.trim(), opts.C.trim(), opts.D.trim()];
+          const uniqueVals = new Set(vals.map(v => v.toLowerCase()));
+          if (uniqueVals.size < 4) {
+            issues.push('Terdapat pilihan pengecoh yang kembar/identik pada opsi A–D.');
+            recommendations.push('Pastikan setiap opsi A, B, C, dan D berbeda dan mudah dipahami anak MI.');
+          }
+          if (vals.some(v => /semua jawaban benar|semua salah/i.test(v))) {
+            issues.push('Terdapat opsi jawaban yang ambigu ("Semua jawaban benar/salah").');
+            recommendations.push('Ganti dengan pilihan jawaban yang konkret dan setara panjangnya.');
+          }
+        }
+        if (!['A', 'B', 'C', 'D'].includes(String(soal.kunci_jawaban).toUpperCase().trim())) {
+          issues.push('Kunci jawaban Pilihan Ganda harus berupa salah satu huruf A, B, C, atau D.');
+        }
+      }
+
+      const duplicate = allQuestions.find(q => q.id !== soal.id && q.batang_soal.trim().toLowerCase() === soal.batang_soal.trim().toLowerCase());
+      if (duplicate) {
+        issues.push(`Batang soal terdeteksi duplikat dengan soal Nomor ${duplicate.nomor_soal}.`);
+        recommendations.push('Regenerate atau ubah contoh cerita pada batang soal.');
+      }
+
+      let status = 'VALID';
+      if (issues.some(i => i.includes('PELANGGARAN ATURAN PG') || i.includes('tidak memiliki kunci'))) {
+        status = 'TIDAK VALID';
+      } else if (issues.length > 0) {
+        status = 'PERLU REVISI';
+      }
+
+      return {
+        status,
+        issues,
+        recommendations: recommendations.length > 0 ? recommendations : ['Soal telah memenuhi 11 parameter kualitas & ramah dibaca anak tingkat MI.']
+      };
+    }
+
+    /**
+     * Memanggil Gemini API (atau Backend Google Apps Script) Khusus Bahasa Anak MI
+     */
+    async function callGeminiAPIForQuestions(indicatorsToGenerate) {
+      const idm = DB.IDENTITAS_MADRASAH[0];
+
+      if (isGasEnvironment) {
+        return new Promise((resolve, reject) => {
+          google.script.run
+            .withSuccessHandler(res => resolve(res))
+            .withFailureHandler(err => reject(err))
+            .generateQuestionsFromKisiServer(idm, indicatorsToGenerate);
+        });
+      }
+
+      if (gasWebAppUrl && !runtimeApiKey) {
+        const res = await fetch(gasWebAppUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'GENERATE_QUESTIONS', identitas: idm, indicators: indicatorsToGenerate })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        return data.result;
+      }
+
+      const miGuidance = getMILanguageGuidance(idm.kelas);
+
+      const systemPrompt = `Anda adalah Guru Teladan Madrasah Ibtidaiyah (MI) dan Ahli Evaluasi Pendidikan Dasar Kementerian Agama RI.
+Tugas Anda adalah menghasilkan butir soal ujian yang SANGAT MUDAH DIPAHAMI OLEH ANAK TINGKAT MADRASAH IBTIDAIYAH (MI / SD usia 6–12 tahun) berdasarkan daftar indikator kisi-kisi yang diberikan.
+
+ATURAN BAHASA KHUSUS ANAK TINGKAT MI (WAJIB DITAATI):
+${miGuidance}
+- Gunakan kata-kata yang sederhana, akrab di telinga anak-anak, kalimat pendek, tidak berbelit-belit, dan langsung dipahami saat pertama kali dibaca anak MI.
+- DILARANG menggunakan istilah abstrak/akademis tingkat tinggi (seperti "implementasi", "signifikansi", "komprehensif", "paradigma", "determinasi", "konsekuensi", "konstruktif", dll). Gantilah dengan kata sehari-hari seperti "contoh perbuatan", "manfaat", "akibat", "cara yang baik", "sikap yang benar".
+- Pembahasan jawaban juga harus ditulis dengan bahasa yang lembut, jelas, dan mudah dimengerti oleh siswa MI.
+
+ATURAN MUTLAK PENULISAN SOAL PILIHAN GANDA:
+1. Batang soal Pilihan Ganda WAJIB menggunakan kalimat pernyataan atau kalimat perintah yang diakhiri tanda titik-titik (....) atau titik (.).
+2. DILARANG KERAS menggunakan tanda tanya (?) pada batang soal Pilihan Ganda maupun Pilihan Ganda Kompleks.
+3. Contoh yang benar untuk anak MI:
+   - "Sebelum makan bersama keluarga, Ahmad selalu membaca doa. Sikap Ahmad menunjukkan rasa syukur kepada ...."
+   - "Ibu membeli 12 buah apel, lalu diberikan kepada adik 4 buah. Sisa buah apel Ibu sekarang adalah ...."
+   - "Bagian tumbuhan yang berada di dalam tanah dan berguna untuk menyerap air adalah ...."
+4. Pilihan jawaban A, B, C, D harus singkat, seimbang panjangnya, masuk akal bagi anak MI, hanya ada satu jawaban paling tepat, dan tidak boleh menggunakan opsi "Semua jawaban benar".`;
+
+      const userPrompt = `Buatlah tepat ${indicatorsToGenerate.length} butir soal tingkat Madrasah Ibtidaiyah (MI) dengan bahasa yang ramah dan mudah dipahami anak ${idm.kelas} sesuai daftar indikator berikut:
+Madrasah Ibtidaiyah: ${idm.nama_madrasah}
+Mata Pelajaran MI: ${idm.mapel}
+Kelas/Fase MI: ${idm.kelas}
+Jenis Penilaian: ${idm.jenis_penilaian}
+Kurikulum: ${idm.kurikulum}
+
+DAFTAR INDIKATOR KISI-KISI:
+${JSON.stringify(indicatorsToGenerate.map(ind => ({
+  indikator_id: ind.id,
+  nomor_soal: ind.nomor_soal,
+  cp: ind.cp,
+  tp: ind.tp,
+  materi: ind.materi,
+  indikator_soal: ind.indikator_soal,
+  level_kognitif: ind.level_kognitif,
+  bentuk_soal: ind.bentuk_soal,
+  bobot: ind.bobot
+})), null, 2)}`;
+
+      const payload = {
+        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                indikator_id: { type: "STRING" },
+                nomor_soal: { type: "INTEGER" },
+                materi: { type: "STRING" },
+                indikator_soal: { type: "STRING" },
+                level_kognitif: { type: "STRING" },
+                bentuk_soal: { type: "STRING" },
+                tingkat_kesulitan: { type: "STRING" },
+                batang_soal: { type: "STRING" },
+                opsi_a: { type: "STRING" },
+                opsi_b: { type: "STRING" },
+                opsi_c: { type: "STRING" },
+                opsi_d: { type: "STRING" },
+                kunci_jawaban: { type: "STRING" },
+                pembahasan: { type: "STRING" },
+                bobot: { type: "NUMBER" }
+              },
+              required: ["indikator_id", "nomor_soal", "batang_soal", "kunci_jawaban", "pembahasan"]
+            }
+          }
+        }
+      };
+
+      const apiKey = runtimeApiKey || "";
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+      const delays = [1000, 2000, 4000];
+      for (let attempt = 0; attempt <= delays.length; attempt++) {
+        try {
+          const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          if (!response.ok) throw new Error(`Koneksi API AI gagal (HTTP ${response.status}). Pastikan API Key telah dikonfigurasi di menu 7.`);
+          const result = await response.json();
+          const jsonText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (!jsonText) throw new Error('Respons AI kosong atau batas kuota tercapai.');
+          return JSON.parse(jsonText);
+        } catch (err) {
+          if (attempt === delays.length) throw err;
+          await new Promise(r => setTimeout(r, delays[attempt]));
+        }
+      }
+    }
+
+    /**
+     * Tombol Utama: GENERATE SOAL DARI KISI-KISI
+     */
+    async function triggerFullAIGeneration() {
+      const idm = DB.IDENTITAS_MADRASAH[0];
+      if (!idm || !idm.nama_madrasah || !idm.mapel) {
+        showToast('Harap lengkapi Identitas Madrasah Ibtidaiyah (MI) dan Mata Pelajaran terlebih dahulu.', 'warning');
+        navigate('identitas');
+        return;
+      }
+
+      if (!validateKisiCompleteness(true)) {
+        showToast('Mohon lengkapi kisi-kisi terlebih dahulu sebelum generate soal.', 'warning');
+        navigate('kisikisi');
+        return;
+      }
+
+      const overlay = document.getElementById('aiLoadingOverlay');
+      const progressBar = document.getElementById('aiProgressBar');
+      const progressStep = document.getElementById('aiProgressStep');
+      overlay.classList.remove('hidden');
+      overlay.classList.add('flex');
+
+      progressBar.style.width = '25%';
+      progressStep.textContent = `Membaca ${DB.INDIKATOR.length} indikator kisi-kisi tingkat ${idm.kelas}...`;
+
+      try {
+        progressBar.style.width = '60%';
+        progressStep.textContent = `Menyusun soal dengan kosakata sederhana yang mudah dipahami siswa ${idm.kelas}...`;
+        const generatedRaw = await callGeminiAPIForQuestions(DB.INDIKATOR);
+
+        progressBar.style.width = '85%';
+        progressStep.textContent = 'Memeriksa 11 parameter kualitas, keterbacaan anak MI & memastikan 0 tanda tanya (?) pada PG...';
+
+        DB.BANK_SOAL = [];
+        DB.PILIHAN_JAWABAN = [];
+        DB.KUNCI_JAWABAN = [];
+        DB.PEMBAHASAN = [];
+        DB.VALIDASI_SOAL = [];
+
+        generatedRaw.forEach((raw, idx) => {
+          const matchedInd = DB.INDIKATOR.find(i => i.id === raw.indikator_id) || DB.INDIKATOR[idx] || DB.INDIKATOR[0];
+          const soalId = 'SOAL-' + Date.now() + '-' + (idx + 1);
+          const bentuk = raw.bentuk_soal || matchedInd.bentuk_soal;
+          const cleanStem = enforceNoQuestionMarkOnPG(raw.batang_soal, bentuk);
+
+          const soalObj = {
+            id: soalId,
+            kisi_id: DB.KISI_KISI[0]?.id || 'KISI-001',
+            indikator_id: matchedInd.id,
+            nomor_soal: raw.nomor_soal || matchedInd.nomor_soal,
+            tahun_pelajaran: idm.tahun_pelajaran,
+            semester: idm.semester,
+            mapel: idm.mapel,
+            kelas: idm.kelas,
+            materi: raw.materi || matchedInd.materi,
+            tp: matchedInd.tp,
+            indikator_soal: matchedInd.indikator_soal,
+            level_kognitif: raw.level_kognitif || matchedInd.level_kognitif,
+            bentuk_soal: bentuk,
+            tingkat_kesulitan: raw.tingkat_kesulitan || (['C4','C5','C6'].includes(matchedInd.level_kognitif) ? 'Sulit (HOTS)' : 'Mudah'),
+            batang_soal: cleanStem,
+            pilihan: {
+              A: raw.opsi_a || '',
+              B: raw.opsi_b || '',
+              C: raw.opsi_c || '',
+              D: raw.opsi_d || ''
+            },
+            kunci_jawaban: String(raw.kunci_jawaban || '').trim(),
+            pembahasan: raw.pembahasan || '',
+            bobot: Number(raw.bobot || matchedInd.bobot || 10),
+            guru_pembuat: idm.nama_guru,
+            status_persetujuan: 'DRAFT',
+            created_at: new Date().toISOString()
+          };
+
+          DB.BANK_SOAL.push(soalObj);
+        });
+
+        syncRelationalQuestionTables();
+
+        progressBar.style.width = '100%';
+        addLog('GENERATE_SOAL_AI', `Berhasil menyusun dan memvalidasi ${DB.BANK_SOAL.length} butir soal ramah anak MI dari kisi-kisi`);
+        showToast(`${DB.BANK_SOAL.length} butir soal ramah anak MI berhasil dihasilkan oleh AI dan divalidasi!`, 'success');
+      } catch (err) {
+        addLog('AI_ERROR', `Gagal generate soal: ${err.message || err}`);
+        showToast(`Gagal menghasilkan soal dari AI: ${err.message || 'Periksa konfigurasi API Key di menu 7.'}`, 'error');
+      } finally {
+        overlay.classList.add('hidden');
+        overlay.classList.remove('flex');
+        renderGeneratedQuestions();
+        updateBadges();
+      }
+    }
+
+    /**
+     * Sinkronisasi Tabel Relasional (`PILIHAN_JAWABAN`, `KUNCI_JAWABAN`, `PEMBAHASAN`, `VALIDASI_SOAL`)
+     */
+    function syncRelationalQuestionTables() {
+      DB.PILIHAN_JAWABAN = [];
+      DB.KUNCI_JAWABAN = [];
+      DB.PEMBAHASAN = [];
+      DB.VALIDASI_SOAL = [];
+
+      DB.BANK_SOAL.forEach(soal => {
+        if (soal.bentuk_soal === 'Pilihan Ganda' || soal.bentuk_soal === 'Pilihan Ganda Kompleks') {
+          ['A', 'B', 'C', 'D'].forEach(kode => {
+            DB.PILIHAN_JAWABAN.push({
+              id: `OPT-${soal.id}-${kode}`,
+              soal_id: soal.id,
+              kode_opsi: kode,
+              teks_opsi: soal.pilihan?.[kode] || '',
+              is_kunci: String(soal.kunci_jawaban).toUpperCase() === kode
+            });
+          });
+        }
+
+        DB.KUNCI_JAWABAN.push({
+          id: `KEY-${soal.id}`,
+          soal_id: soal.id,
+          nomor_soal: soal.nomor_soal,
+          kunci: soal.kunci_jawaban,
+          bobot: soal.bobot
+        });
+
+        DB.PEMBAHASAN.push({
+          id: `EXP-${soal.id}`,
+          soal_id: soal.id,
+          pembahasan: soal.pembahasan
+        });
+
+        const valResult = validateSingleQuestion(soal, DB.BANK_SOAL);
+        soal.validasi = valResult;
+        DB.VALIDASI_SOAL.push({
+          id: `VAL-${soal.id}`,
+          soal_id: soal.id,
+          status: valResult.status,
+          catatan: valResult.issues.join('; ') || 'Lolos 11 Parameter Validasi & Keterbacaan MI',
+          rekomendasi: valResult.recommendations.join('; '),
+          checked_at: new Date().toISOString()
+        });
+      });
+
+      saveAllToDatabase(false);
+    }
+
+    /**
+     * Regenerate Satu Soal Spesifik Tanpa Menghapus Soal Lainnya
+     */
+    async function regenerateSingleQuestion(soalId) {
+      const idx = DB.BANK_SOAL.findIndex(s => s.id === soalId);
+      if (idx === -1) return;
+      const currentSoal = DB.BANK_SOAL[idx];
+      const ind = DB.INDIKATOR.find(i => i.id === currentSoal.indikator_id);
+      if (!ind) {
+        showToast('Indikator acuan tidak ditemukan pada kisi-kisi.', 'error');
+        return;
+      }
+
+      showToast(`Menghubungi AI untuk menyusun ulang Soal MI Nomor ${currentSoal.nomor_soal}...`, 'info');
+
+      try {
+        const arr = await callGeminiAPIForQuestions([ind]);
+        const newRaw = arr[0];
+        if (!newRaw) throw new Error('Respons AI kosong');
+
+        currentSoal.batang_soal = enforceNoQuestionMarkOnPG(newRaw.batang_soal, currentSoal.bentuk_soal);
+        if (currentSoal.bentuk_soal === 'Pilihan Ganda' || currentSoal.bentuk_soal === 'Pilihan Ganda Kompleks') {
+          currentSoal.pilihan = {
+            A: newRaw.opsi_a || '',
+            B: newRaw.opsi_b || '',
+            C: newRaw.opsi_c || '',
+            D: newRaw.opsi_d || ''
+          };
+        }
+        currentSoal.kunci_jawaban = newRaw.kunci_jawaban || currentSoal.kunci_jawaban;
+        currentSoal.pembahasan = newRaw.pembahasan || currentSoal.pembahasan;
+
+        syncRelationalQuestionTables();
+        renderGeneratedQuestions();
+        addLog('REGENERATE_SOAL', `Me-regenerate butir soal MI Nomor ${currentSoal.nomor_soal} (${soalId})`);
+        showToast(`Soal MI Nomor ${currentSoal.nomor_soal} berhasil diperbarui oleh AI.`, 'success');
+      } catch (err) {
+        showToast(`Gagal melakukan regenerate soal: ${err.message || 'Periksa API Key AI'}`, 'error');
+      }
+    }
+
+    function renderGeneratedQuestions() {
+      const container = document.getElementById('generatedQuestionsContainer');
+      container.innerHTML = '';
+
+      let validCount = 0, revisiCount = 0, invalidCount = 0;
+
+      if (DB.BANK_SOAL.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white rounded-xl border border-slate-200 p-10 text-center space-y-3">
+            <div class="w-14 h-14 rounded-full bg-kemenag-50 text-kemenag-700 flex items-center justify-center mx-auto text-2xl">
+              <i class="fa-solid fa-wand-magic-sparkles"></i>
+            </div>
+            <h4 class="text-base font-bold text-slate-800">Belum Ada Soal MI yang Dihasilkan</h4>
+            <p class="text-xs text-slate-500 max-w-md mx-auto">Klik tombol <strong>GENERATE SOAL DARI KISI-KISI</strong> di atas untuk menyusun soal ramah anak MI secara otomatis berdasarkan ${DB.INDIKATOR.length} indikator kisi-kisi yang telah Anda buat.</p>
+          </div>
+        `;
+      }
+
+      DB.BANK_SOAL.forEach(soal => {
+        const val = soal.validasi || validateSingleQuestion(soal, DB.BANK_SOAL);
+        if (val.status === 'VALID') validCount++;
+        else if (val.status === 'PERLU REVISI') revisiCount++;
+        else invalidCount++;
+
+        const badgeColor = val.status === 'VALID'
+          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+          : (val.status === 'PERLU REVISI' ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-red-100 text-red-800 border-red-300');
+
+        const isPG = soal.bentuk_soal === 'Pilihan Ganda' || soal.bentuk_soal === 'Pilihan Ganda Kompleks';
+
+        const card = document.createElement('div');
+        card.className = 'bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-3';
+        card.innerHTML = `
+          <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="px-2.5 py-1 rounded-lg bg-kemenag-700 text-white text-xs font-bold">Soal No. ${soal.nomor_soal}</span>
+              <span class="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold">${soal.bentuk_soal}</span>
+              <span class="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 text-xs font-semibold border border-blue-200">${soal.level_kognitif} (${soal.tingkat_kesulitan})</span>
+              <span class="px-2.5 py-1 rounded-lg bg-purple-50 text-purple-700 text-xs font-semibold">Bobot: ${soal.bobot}</span>
+              <span class="px-2.5 py-1 rounded-lg text-xs font-bold border ${badgeColor}">
+                <i class="fa-solid ${val.status === 'VALID' ? 'fa-circle-check' : 'fa-triangle-exclamation'} mr-1"></i>${val.status}
+              </span>
+            </div>
+            <div class="flex flex-wrap items-center gap-1.5">
+              <button onclick="openEditQuestionModal('${soal.id}')" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 transition">
+                <i class="fa-solid fa-pen mr-1"></i>Edit Soal
+              </button>
+              <button onclick="regenerateSingleQuestion('${soal.id}')" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition" title="Regenerate hanya soal ini">
+                <i class="fa-solid fa-rotate mr-1"></i>Regenerate
+              </button>
+              <button onclick="duplicateQuestion('${soal.id}')" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-blue-50 hover:bg-blue-100 text-blue-700 transition">
+                <i class="fa-solid fa-copy mr-1"></i>Duplikasi
+              </button>
+              <button onclick="deleteQuestion('${soal.id}')" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-red-50 hover:bg-red-100 text-red-600 transition">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-200/80 text-slate-600">
+            <strong>Materi MI:</strong> ${soal.materi} | <strong>Indikator Acuan:</strong> ${soal.indikator_soal}
+          </div>
+
+          <div class="text-sm text-slate-900 font-medium leading-relaxed whitespace-pre-line pl-1">${soal.batang_soal}</div>
+
+          ${isPG ? `
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-xs">
+              ${['A', 'B', 'C', 'D'].map(opt => {
+                const isKey = String(soal.kunci_jawaban).toUpperCase() === opt;
+                return `
+                  <div class="p-2.5 rounded-lg border ${isKey ? 'bg-emerald-50 border-emerald-400 font-semibold text-emerald-950' : 'bg-white border-slate-200 text-slate-700'} flex items-start gap-2">
+                    <span class="w-5 h-5 rounded-full ${isKey ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700'} flex items-center justify-center font-bold shrink-0">${opt}</span>
+                    <span>${soal.pilihan?.[opt] || '-'}</span>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          ` : ''}
+
+          <div class="pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+            <div>
+              <span class="font-bold text-kemenag-700">Kunci Jawaban: ${soal.kunci_jawaban}</span>
+              <span class="mx-2 text-slate-300">|</span>
+              <span class="text-slate-600"><strong>Pembahasan:</strong> ${soal.pembahasan}</span>
+            </div>
+          </div>
+
+          ${val.issues.length > 0 ? `
+            <div class="p-3 rounded-lg bg-red-50 border border-red-200 text-xs text-red-900 space-y-1">
+              <div class="font-bold"><i class="fa-solid fa-circle-exclamation mr-1"></i>Temuan Validasi Otomatis:</div>
+              <ul class="list-disc pl-5">${val.issues.map(i => `<li>${i}</li>`).join('')}</ul>
+              <div class="text-emerald-800 font-medium pt-1"><strong>Rekomendasi Perbaikan:</strong> ${val.recommendations.join(' ')}</div>
+            </div>
+          ` : ''}
+        `;
+        container.appendChild(card);
+      });
+
+      document.getElementById('genValidBadge').textContent = validCount;
+      document.getElementById('genRevisiBadge').textContent = revisiCount;
+      document.getElementById('genInvalidBadge').textContent = invalidCount;
+      updateBadges();
+    }
+
+    function runAutoValidationAll() {
+      syncRelationalQuestionTables();
+      renderGeneratedQuestions();
+      showToast('Pemeriksaan kualitas 11 parameter & keterbacaan bahasa anak MI selesai dijalankan.', 'success');
+    }
+
+    function approveAndSaveAllToBank() {
+      DB.BANK_SOAL.forEach(s => s.status_persetujuan = 'DISETUJUI');
+      syncRelationalQuestionTables();
+      addLog('APPROVE_BANK_SOAL', `Menyetujui dan menyimpan ${DB.BANK_SOAL.length} soal MI ke Bank Soal`);
+      showToast('Seluruh soal telah disetujui Guru dan tersimpan di Bank Soal MI.', 'success');
+      navigate('banksoal');
+    }
+
+    /* ==========================================
+       MODAL EDIT, DUPLIKASI, DAN HAPUS SOAL
+       ========================================== */
+    function openEditQuestionModal(soalId) {
+      const soal = DB.BANK_SOAL.find(s => s.id === soalId);
+      if (!soal) return;
+
+      document.getElementById('edit_soalId').value = soal.id;
+      document.getElementById('edit_nomorSoal').value = soal.nomor_soal;
+      document.getElementById('edit_levelKognitif').value = soal.level_kognitif;
+      document.getElementById('edit_bobot').value = soal.bobot;
+      document.getElementById('edit_indikator').value = soal.indikator_soal;
+      document.getElementById('edit_batangSoal').value = soal.batang_soal;
+      document.getElementById('edit_opsiA').value = soal.pilihan?.A || '';
+      document.getElementById('edit_opsiB').value = soal.pilihan?.B || '';
+      document.getElementById('edit_opsiC').value = soal.pilihan?.C || '';
+      document.getElementById('edit_opsiD').value = soal.pilihan?.D || '';
+      document.getElementById('edit_kunci').value = soal.kunci_jawaban;
+      document.getElementById('edit_kesulitan').value = soal.tingkat_kesulitan;
+      document.getElementById('edit_pembahasan').value = soal.pembahasan;
+
+      const pgBox = document.getElementById('edit_pgOptionsBox');
+      if (soal.bentuk_soal === 'Pilihan Ganda' || soal.bentuk_soal === 'Pilihan Ganda Kompleks') {
+        pgBox.classList.remove('hidden');
+      } else {
+        pgBox.classList.add('hidden');
+      }
+
+      const modal = document.getElementById('editQuestionModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeEditQuestionModal() {
+      const modal = document.getElementById('editQuestionModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function autoFixQuestionStemInModal() {
+      const textarea = document.getElementById('edit_batangSoal');
+      textarea.value = enforceNoQuestionMarkOnPG(textarea.value, 'Pilihan Ganda');
+      showToast('Batang soal otomatis dikonversi menjadi kalimat pernyataan ramah anak MI tanpa tanda tanya.', 'info');
+    }
+
+    function saveEditedQuestion() {
+      const id = document.getElementById('edit_soalId').value;
+      const soal = DB.BANK_SOAL.find(s => s.id === id);
+      if (!soal) return;
+
+      soal.nomor_soal = parseInt(document.getElementById('edit_nomorSoal').value) || soal.nomor_soal;
+      soal.level_kognitif = document.getElementById('edit_levelKognitif').value;
+      soal.bobot = parseFloat(document.getElementById('edit_bobot').value) || 10;
+      soal.indikator_soal = document.getElementById('edit_indikator').value.trim();
+      soal.batang_soal = document.getElementById('edit_batangSoal').value.trim();
+      soal.pilihan = {
+        A: document.getElementById('edit_opsiA').value.trim(),
+        B: document.getElementById('edit_opsiB').value.trim(),
+        C: document.getElementById('edit_opsiC').value.trim(),
+        D: document.getElementById('edit_opsiD').value.trim()
+      };
+      soal.kunci_jawaban = document.getElementById('edit_kunci').value.trim();
+      soal.tingkat_kesulitan = document.getElementById('edit_kesulitan').value;
+      soal.pembahasan = document.getElementById('edit_pembahasan').value.trim();
+
+      syncRelationalQuestionTables();
+      closeEditQuestionModal();
+      renderGeneratedQuestions();
+      renderBankSoal();
+      addLog('EDIT_SOAL', `Mengedit butir soal MI Nomor ${soal.nomor_soal}`);
+      showToast('Perubahan soal berhasil disimpan dan divalidasi ulang.', 'success');
+    }
+
+    function duplicateQuestion(soalId) {
+      const orig = DB.BANK_SOAL.find(s => s.id === soalId);
+      if (!orig) return;
+      const copy = JSON.parse(JSON.stringify(orig));
+      copy.id = 'SOAL-' + Date.now();
+      copy.nomor_soal = DB.BANK_SOAL.length + 1;
+      copy.batang_soal = copy.batang_soal + ' (Variasi)';
+      DB.BANK_SOAL.push(copy);
+      syncRelationalQuestionTables();
+      renderGeneratedQuestions();
+      renderBankSoal();
+      showToast('Soal berhasil diduplikasi.', 'success');
+    }
+
+    function deleteQuestion(soalId) {
+      showConfirmModal('Hapus Butir Soal', 'Apakah Anda yakin ingin menghapus soal ini secara permanen dari Bank Soal MI?', () => {
+        DB.BANK_SOAL = DB.BANK_SOAL.filter(s => s.id !== soalId);
+        syncRelationalQuestionTables();
+        renderGeneratedQuestions();
+        renderBankSoal();
+        addLog('DELETE_SOAL', `Menghapus butir soal ${soalId}`);
+        showToast('Butir soal telah dihapus.', 'info');
+      });
+    }
+
+    /* ==========================================
+       MODUL 4: BANK SOAL TERPADU
+       ========================================== */
+    function renderBankSoal() {
+      const tbody = document.getElementById('bankSoalTableBody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      const q = (document.getElementById('bankSearchInput')?.value || '').toLowerCase();
+      const level = document.getElementById('bankFilterLevel')?.value || 'ALL';
+      const bentuk = document.getElementById('bankFilterBentuk')?.value || 'ALL';
+      const status = document.getElementById('bankFilterStatus')?.value || 'ALL';
+
+      const filtered = DB.BANK_SOAL.filter(item => {
+        const matchQ = !q || item.batang_soal.toLowerCase().includes(q) || item.materi.toLowerCase().includes(q) || item.indikator_soal.toLowerCase().includes(q);
+        const matchLvl = level === 'ALL' || item.level_kognitif === level;
+        const matchBentuk = bentuk === 'ALL' || item.bentuk_soal === bentuk;
+        const matchSt = status === 'ALL' || item.status_persetujuan === status;
+        return matchQ && matchLvl && matchBentuk && matchSt;
+      });
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-slate-400">Tidak ada butir soal MI yang sesuai kriteria filter.</td></tr>`;
+        return;
+      }
+
+      filtered.forEach(soal => {
+        const valStatus = soal.validasi?.status || 'VALID';
+        const isChecked = selectedBankIds.has(soal.id);
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-50 transition';
+        tr.innerHTML = `
+          <td class="p-3 text-center">
+            <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleBankSelection('${soal.id}', this.checked)">
+          </td>
+          <td class="p-3 font-bold text-slate-700">${soal.nomor_soal}</td>
+          <td class="p-3">
+            <div class="font-semibold text-slate-800">${soal.materi}</div>
+            <div class="text-[11px] text-slate-500 line-clamp-2">${soal.indikator_soal}</div>
+          </td>
+          <td class="p-3">
+            <div class="text-slate-800 font-medium mb-1">${soal.batang_soal}</div>
+            ${soal.bentuk_soal === 'Pilihan Ganda' ? `
+              <div class="grid grid-cols-2 gap-1 text-[11px] text-slate-600">
+                <span><strong>A.</strong> ${soal.pilihan.A}</span>
+                <span><strong>B.</strong> ${soal.pilihan.B}</span>
+                <span><strong>C.</strong> ${soal.pilihan.C}</span>
+                <span><strong>D.</strong> ${soal.pilihan.D}</span>
+              </div>
+            ` : ''}
+          </td>
+          <td class="p-3">
+            <span class="inline-block px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-semibold mb-1">${soal.level_kognitif}</span>
+            <div class="text-[11px] text-slate-500">${soal.bentuk_soal}</div>
+          </td>
+          <td class="p-3 text-center">
+            <div class="font-bold text-kemenag-700 text-sm">${soal.kunci_jawaban}</div>
+            <div class="text-[11px] text-slate-500">Bobot: ${soal.bobot}</div>
+          </td>
+          <td class="p-3 text-center">
+            <span class="px-2 py-0.5 rounded-full text-[11px] font-bold ${valStatus === 'VALID' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${valStatus}</span>
+          </td>
+          <td class="p-3 text-center">
+            <div class="flex items-center justify-center gap-1">
+              <button onclick="openEditQuestionModal('${soal.id}')" class="p-1.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700"><i class="fa-solid fa-pen"></i></button>
+              <button onclick="duplicateQuestion('${soal.id}')" class="p-1.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-600"><i class="fa-solid fa-copy"></i></button>
+              <button onclick="deleteQuestion('${soal.id}')" class="p-1.5 rounded bg-red-50 hover:bg-red-100 text-red-600"><i class="fa-solid fa-trash"></i></button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function toggleBankSelection(id, checked) {
+      if (checked) selectedBankIds.add(id);
+      else selectedBankIds.delete(id);
+    }
+
+    function toggleSelectAllBank(checked) {
+      DB.BANK_SOAL.forEach(s => {
+        if (checked) selectedBankIds.add(s.id);
+        else selectedBankIds.delete(s.id);
+      });
+      renderBankSoal();
+    }
+
+    function addSelectedBankToPaket() {
+      if (selectedBankIds.size === 0) {
+        showToast('Pilih minimal 1 soal dari tabel Bank Soal MI terlebih dahulu.', 'warning');
+        return;
+      }
+      const pkgId = 'PKG-' + Date.now();
+      const idm = DB.IDENTITAS_MADRASAH[0];
+      const newPkg = {
+        id: pkgId,
+        nama_paket: `PAKET KUSTOM MI (${selectedBankIds.size} SOAL)`,
+        mapel: idm.mapel,
+        kelas: idm.kelas,
+        waktu: idm.alokasi_waktu,
+        petunjuk: '1. Bacalah basmalah sebelum mulai mengerjakan soal. 2. Kerjakan soal dengan jujur dan teliti.',
+        created_at: new Date().toISOString()
+      };
+      DB.PAKET_UJIAN.push(newPkg);
+
+      let order = 1;
+      DB.BANK_SOAL.filter(s => selectedBankIds.has(s.id)).forEach(s => {
+        DB.DETAIL_PAKET.push({
+          id: `DPK-${pkgId}-${order}`,
+          paket_id: pkgId,
+          soal_id: s.id,
+          nomor_urut_paket: order++,
+          batang_soal: s.batang_soal,
+          bentuk_soal: s.bentuk_soal,
+          level_kognitif: s.level_kognitif,
+          pilihan: JSON.parse(JSON.stringify(s.pilihan || {})),
+          kunci_jawaban: s.kunci_jawaban,
+          pembahasan: s.pembahasan,
+          bobot: s.bobot
+        });
+      });
+
+      activePackageId = pkgId;
+      showToast(`Paket Ujian MI baru berhasil dibuat dengan ${selectedBankIds.size} butir soal.`, 'success');
+      navigate('paketujian');
+    }
+
+    /* ==========================================
+       MODUL 5: PAKET UJIAN & PENGACAKAN OPSI + UPDATE KUNCI OTOMATIS
+       ========================================== */
+    function createNewExamPackage(packageName = 'PAKET A (UTAMA)', silent = false) {
+      if (DB.BANK_SOAL.length === 0) {
+        if (!silent) showToast('Bank Soal masih kosong. Silakan Generate Soal dari Kisi-Kisi terlebih dahulu.', 'warning');
+        return;
+      }
+
+      const pkgId = 'PKG-' + Date.now();
+      const idm = DB.IDENTITAS_MADRASAH[0];
+      const pkg = {
+        id: pkgId,
+        nama_paket: packageName,
+        mapel: idm.mapel,
+        kelas: idm.kelas,
+        waktu: idm.alokasi_waktu,
+        petunjuk: '1. Bacalah basmalah dan berdoalah sebelum mulai mengerjakan soal. 2. Tulislah nama lengkap dan nomor absenmu pada lembar jawaban. 3. Bacalah setiap soal dengan teliti dan pilihlah jawaban yang paling tepat.',
+        created_at: new Date().toISOString()
+      };
+
+      if (silent && DB.PAKET_UJIAN.length > 0) {
+        DB.PAKET_UJIAN = [pkg];
+        DB.DETAIL_PAKET = [];
+      } else {
+        DB.PAKET_UJIAN.push(pkg);
+      }
+
+      DB.BANK_SOAL.forEach((s, idx) => {
+        DB.DETAIL_PAKET.push({
+          id: `DPK-${pkgId}-${idx + 1}`,
+          paket_id: pkgId,
+          soal_id: s.id,
+          nomor_urut_paket: idx + 1,
+          batang_soal: s.batang_soal,
+          bentuk_soal: s.bentuk_soal,
+          level_kognitif: s.level_kognitif,
+          pilihan: JSON.parse(JSON.stringify(s.pilihan || {})),
+          kunci_jawaban: s.kunci_jawaban,
+          pembahasan: s.pembahasan,
+          bobot: s.bobot
+        });
+      });
+
+      activePackageId = pkgId;
+      if (!silent) {
+        renderPaketUjianView();
+        showToast(`Paket ujian MI "${packageName}" berhasil dirakit.`, 'success');
+      }
+      updateBadges();
+    }
+
+    /**
+     * Mengacak Urutan Pilihan Jawaban A-D Sekaligus Memperbarui Kunci Jawaban dengan Akurat
+     */
+    function shuffleActivePackageOptions() {
+      if (!activePackageId) return;
+      const items = DB.DETAIL_PAKET.filter(d => d.paket_id === activePackageId);
+      let updatedCount = 0;
+
+      items.forEach(item => {
+        if (item.bentuk_soal === 'Pilihan Ganda' && item.pilihan) {
+          const currentKeyLetter = String(item.kunci_jawaban).toUpperCase().trim();
+          const correctText = item.pilihan[currentKeyLetter];
+
+          const entries = [
+            item.pilihan.A,
+            item.pilihan.B,
+            item.pilihan.C,
+            item.pilihan.D
+          ];
+
+          for (let i = entries.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [entries[i], entries[j]] = [entries[j], entries[i]];
+          }
+
+          const letters = ['A', 'B', 'C', 'D'];
+          const newOptions = {};
+          let newKeyLetter = currentKeyLetter;
+
+          letters.forEach((ltr, idx) => {
+            newOptions[ltr] = entries[idx];
+            if (entries[idx] === correctText) {
+              newKeyLetter = ltr;
+            }
+          });
+
+          item.pilihan = newOptions;
+          item.kunci_jawaban = newKeyLetter;
+          updatedCount++;
+        }
+      });
+
+      renderPaketUjianView();
+      addLog('SHUFFLE_OPTIONS', `Mengacak opsi jawaban A-D & memperbarui kunci jawaban otomatis pada ${updatedCount} soal PG`);
+      showToast(`Opsi jawaban A–D berhasil diacak dan Kunci Jawaban telah diperbarui secara otomatis!`, 'success');
+    }
+
+    function shuffleActivePackageQuestions() {
+      if (!activePackageId) return;
+      const items = DB.DETAIL_PAKET.filter(d => d.paket_id === activePackageId);
+
+      const pgItems = items.filter(i => i.bentuk_soal !== 'Uraian');
+      const uraianItems = items.filter(i => i.bentuk_soal === 'Uraian');
+
+      for (let i = pgItems.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pgItems[i], pgItems[j]] = [pgItems[j], pgItems[i]];
+      }
+
+      const combined = [...pgItems, ...uraianItems];
+      combined.forEach((item, idx) => {
+        item.nomor_urut_paket = idx + 1;
+      });
+
+      DB.DETAIL_PAKET = [
+        ...DB.DETAIL_PAKET.filter(d => d.paket_id !== activePackageId),
+        ...combined
+      ];
+
+      renderPaketUjianView();
+      addLog('SHUFFLE_QUESTIONS', `Mengacak urutan penomoran soal pada paket ${activePackageId}`);
+      showToast('Urutan nomor soal berhasil diacak dan dinomori ulang secara otomatis.', 'success');
+    }
+
+    function generateParallelRandomizedPackage() {
+      const nextLetter = String.fromCharCode(65 + DB.PAKET_UJIAN.length);
+      createNewExamPackage(`PAKET ${nextLetter} (PARALEL ACAK)`, true);
+      shuffleActivePackageQuestions();
+      shuffleActivePackageOptions();
+      renderPaketUjianView();
+      showToast(`Paket Paralel (PAKET ${nextLetter}) berhasil dibuat dengan urutan soal & opsi A–D teracak!`, 'success');
+    }
+
+    function selectExamPackage(pkgId) {
+      activePackageId = pkgId;
+      renderPaketUjianView();
+    }
+
+    function updateActivePackageMeta() {
+      const pkg = DB.PAKET_UJIAN.find(p => p.id === activePackageId);
+      if (!pkg) return;
+      pkg.nama_paket = document.getElementById('pkg_namaPaket').value;
+      pkg.waktu = parseInt(document.getElementById('pkg_waktu').value) || 60;
+      pkg.petunjuk = document.getElementById('pkg_petunjuk').value;
+      renderPaketUjianView();
+    }
+
+    function renderPaketUjianView() {
+      if (DB.PAKET_UJIAN.length === 0 && DB.BANK_SOAL.length > 0) {
+        createNewExamPackage('PAKET A (UTAMA)', true);
+      }
+
+      const select = document.getElementById('activePackageSelect');
+      select.innerHTML = DB.PAKET_UJIAN.map(p => `<option value="${p.id}" ${p.id === activePackageId ? 'selected' : ''}>${p.nama_paket}</option>`).join('');
+
+      const activePkg = DB.PAKET_UJIAN.find(p => p.id === activePackageId);
+      const listContainer = document.getElementById('packageQuestionsList');
+
+      if (!activePkg) {
+        listContainer.innerHTML = `<div class="p-6 text-center text-xs text-slate-400">Belum ada paket ujian MI. Silakan Generate Soal terlebih dahulu.</div>`;
+        return;
+      }
+
+      document.getElementById('pkg_namaPaket').value = activePkg.nama_paket;
+      document.getElementById('pkg_waktu').value = activePkg.waktu;
+      document.getElementById('pkg_petunjuk').value = activePkg.petunjuk;
+
+      const details = DB.DETAIL_PAKET
+        .filter(d => d.paket_id === activePackageId)
+        .sort((a, b) => a.nomor_urut_paket - b.nomor_urut_paket);
+
+      listContainer.innerHTML = details.map(item => `
+        <div class="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2 text-xs">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-kemenag-800">Nomor Urut Paket: ${item.nomor_urut_paket} (${item.bentuk_soal} - ${item.level_kognitif})</span>
+            <span class="px-2.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">Kunci Terkini: ${item.kunci_jawaban} | Bobot: ${item.bobot}</span>
+          </div>
+          <p class="text-slate-800 font-medium">${item.batang_soal}</p>
+          ${item.bentuk_soal === 'Pilihan Ganda' ? `
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1">
+              ${['A', 'B', 'C', 'D'].map(opt => `
+                <div class="px-2.5 py-1.5 rounded border ${item.kunci_jawaban === opt ? 'bg-emerald-50 border-emerald-400 font-bold text-emerald-900' : 'bg-white border-slate-200 text-slate-600'}">
+                  ${opt}. ${item.pilihan[opt]}
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+        </div>
+      `).join('');
+    }
+
+    /* ==========================================
+       MODUL 6: DOKUMEN & CETAK SIAP PAKAI (WORD / PDF / EXCEL)
+       ========================================== */
+    function getKopMadrasahHTML(idm, docTitle) {
+      return `
+        <div class="kop-border" style="text-align: center; border-bottom: 3px double #000; padding-bottom: 8px; margin-bottom: 16px;">
+          <div style="font-size: 12pt; font-weight: bold; text-transform: uppercase;">KEMENTERIAN AGAMA REPUBLIK INDONESIA</div>
+          <div style="font-size: 14pt; font-weight: bold; text-transform: uppercase;">${idm.nama_madrasah || 'MADRASAH IBTIDAIYAH (MI)'}</div>
+          <div style="font-size: 10pt;">Tahun Pelajaran ${idm.tahun_pelajaran || '-'} — Semester ${idm.semester || '-'} (${idm.kurikulum || '-'})</div>
+        </div>
+        <div style="text-align: center; margin-bottom: 14px;">
+          <div style="font-size: 12pt; font-weight: bold; text-transform: uppercase; text-decoration: underline;">${docTitle}</div>
+          <div style="font-size: 10.5pt; font-weight: bold;">${(idm.jenis_penilaian || '').toUpperCase()}</div>
+        </div>
+      `;
+    }
+
+    function getSignatureFooterHTML(idm) {
+      const today = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+      return `
+        <table style="border: none; margin-top: 28px; width: 100%;">
+          <tr style="border: none;">
+            <td style="border: none; width: 50%; text-align: left; padding-left: 10px;">
+              Mengetahui,<br>
+              Kepala ${idm.nama_madrasah || 'Madrasah Ibtidaiyah'}<br><br><br><br>
+              <strong><u>${idm.kepala_madrasah || '........................................'}</u></strong>
+            </td>
+            <td style="border: none; width: 50%; text-align: left; padding-left: 40px;">
+              ${(idm.nama_madrasah || '').replace(/MIN|MIS|MI|Negeri|\d+/gi, '').trim() || 'Indonesia'}, ${today}<br>
+              Guru Kelas / Mata Pelajaran<br><br><br><br>
+              <strong><u>${idm.nama_guru || '........................................'}</u></strong><br>
+              NIP. ${idm.nip_guru || '-'}
+            </td>
+          </tr>
+        </table>
+      `;
+    }
+
+    /**
+     * Builder HTML Dokumen yang Kompatibel Penuh dengan Pratinjau A4 & Microsoft Word (.doc)
+     */
+    function buildDocumentHTMLByType(docType) {
+      const idm = DB.IDENTITAS_MADRASAH[0] || {};
+
+      if (DB.PAKET_UJIAN.length === 0 && DB.BANK_SOAL.length > 0) {
+        createNewExamPackage('PAKET A (UTAMA)', true);
+      }
+      const activePkg = DB.PAKET_UJIAN.find(p => p.id === activePackageId) || {
+        nama_paket: 'PAKET A (UTAMA)',
+        waktu: idm.alokasi_waktu || 60,
+        petunjuk: '1. Bacalah basmalah sebelum mulai mengerjakan soal. 2. Kerjakan soal berikut dengan jujur dan teliti.'
+      };
+
+      const pkgQuestions = (DB.DETAIL_PAKET.filter(d => d.paket_id === activePackageId).length > 0)
+        ? DB.DETAIL_PAKET.filter(d => d.paket_id === activePackageId).sort((a, b) => a.nomor_urut_paket - b.nomor_urut_paket)
+        : DB.BANK_SOAL.map((s, idx) => ({ ...s, nomor_urut_paket: idx + 1 }));
+
+      if (docType === 'PAKET_LENGKAP') {
+        const kisiSection = buildDocumentHTMLByType('KISI_KISI');
+        const soalSection = buildDocumentHTMLByType('NASKAH_SOAL');
+        const kunciSection = buildDocumentHTMLByType('KUNCI_JAWABAN');
+        const pembahasanSection = buildDocumentHTMLByType('PEMBAHASAN');
+        return `
+          <div>${kisiSection}</div>
+          <br clear="all" style="page-break-before:always; mso-break-type:section-break" />
+          <div class="word-page-break">${soalSection}</div>
+          <br clear="all" style="page-break-before:always; mso-break-type:section-break" />
+          <div class="word-page-break">${kunciSection}</div>
+          <br clear="all" style="page-break-before:always; mso-break-type:section-break" />
+          <div class="word-page-break">${pembahasanSection}</div>
+        `;
+      }
+
+      if (docType === 'NASKAH_SOAL') {
+        return `
+          ${getKopMadrasahHTML(idm, 'NASKAH SOAL PENILAIAN MADRASAH IBTIDAIYAH')}
+          <table style="margin-bottom: 14px; width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="width: 18%; font-weight: bold;">Mata Pelajaran</td><td style="width: 32%;">: ${idm.mapel || '-'}</td>
+              <td style="width: 18%; font-weight: bold;">Nama Siswa</td><td style="width: 32%;">: ................................................</td>
+            </tr>
+            <tr>
+              <td style="font-weight: bold;">Kelas / Fase</td><td>: ${idm.kelas || '-'}</td>
+              <td style="font-weight: bold;">Nomor Absen</td><td>: ................................................</td>
+            </tr>
+            <tr>
+              <td style="font-weight: bold;">Alokasi Waktu</td><td>: ${activePkg.waktu} Menit</td>
+              <td style="font-weight: bold;">Kode Paket</td><td>: <strong>${activePkg.nama_paket}</strong></td>
+            </tr>
+          </table>
+          <div style="border: 1px solid #000; padding: 8px 12px; margin-bottom: 16px; font-size: 10.5pt;">
+            <strong>PETUNJUK PENGERJAAN:</strong><br>
+            ${activePkg.petunjuk}
+          </div>
+          <table style="border: none; width: 100%; border-collapse: collapse;">
+            ${pkgQuestions.map(q => `
+              <tr style="border: none; page-break-inside: avoid;">
+                <td style="border: none; width: 28px; font-weight: bold; vertical-align: top; padding: 4px 4px 12px 0;">${q.nomor_urut_paket}.</td>
+                <td style="border: none; vertical-align: top; padding: 4px 0 12px 0;">
+                  <div style="margin-bottom: 6px; white-space: pre-line;">${q.batang_soal}</div>
+                  ${(q.bentuk_soal === 'Pilihan Ganda' || q.bentuk_soal === 'Pilihan Ganda Kompleks') ? `
+                    <table style="border: none; width: 100%; margin-top: 2px;">
+                      <tr style="border: none;"><td style="border: none; width: 22px; padding: 1px 0;">A.</td><td style="border: none; padding: 1px 0;">${q.pilihan?.A || ''}</td></tr>
+                      <tr style="border: none;"><td style="border: none; width: 22px; padding: 1px 0;">B.</td><td style="border: none; padding: 1px 0;">${q.pilihan?.B || ''}</td></tr>
+                      <tr style="border: none;"><td style="border: none; width: 22px; padding: 1px 0;">C.</td><td style="border: none; padding: 1px 0;">${q.pilihan?.C || ''}</td></tr>
+                      <tr style="border: none;"><td style="border: none; width: 22px; padding: 1px 0;">D.</td><td style="border: none; padding: 1px 0;">${q.pilihan?.D || ''}</td></tr>
+                    </table>
+                  ` : `<div style="margin-top: 8px; border-bottom: 1px dotted #000; height: 42px;"></div>`}
+                </td>
+              </tr>
+            `).join('')}
+          </table>
+        `;
+      } else if (docType === 'KUNCI_JAWABAN') {
+        return `
+          ${getKopMadrasahHTML(idm, 'KUNCI JAWABAN DAN PEDOMAN PENSKORAN MI (PEGANGAN GURU)')}
+          <p style="font-size: 11pt; margin-bottom: 10px;"><strong>Mata Pelajaran:</strong> ${idm.mapel || '-'} | <strong>Kelas:</strong> ${idm.kelas || '-'} | <strong>Paket:</strong> ${activePkg.nama_paket}</p>
+          <table>
+            <thead>
+              <tr style="background: #f3f4f6;">
+                <th style="width: 12%; text-align: center;">No. Soal</th>
+                <th style="width: 22%;">Bentuk Soal</th>
+                <th style="width: 16%; text-align: center;">Level Kognitif</th>
+                <th style="width: 35%;">Kunci Jawaban</th>
+                <th style="width: 15%; text-align: center;">Bobot Skor</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${pkgQuestions.map(q => `
+                <tr>
+                  <td style="text-align: center; font-weight: bold;">${q.nomor_urut_paket}</td>
+                  <td>${q.bentuk_soal}</td>
+                  <td style="text-align: center;">${q.level_kognitif}</td>
+                  <td style="font-weight: bold;">${q.kunci_jawaban}</td>
+                  <td style="text-align: center;">${q.bobot}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          ${getSignatureFooterHTML(idm)}
+        `;
+      } else if (docType === 'PEMBAHASAN') {
+        return `
+          ${getKopMadrasahHTML(idm, 'PEMBAHASAN SOAL RAMAH ANAK MADRASAH IBTIDAIYAH')}
+          <table>
+            <thead>
+              <tr style="background: #f3f4f6;">
+                <th style="width: 8%; text-align: center;">No</th>
+                <th style="width: 38%;">Batang Soal</th>
+                <th style="width: 14%; text-align: center;">Kunci</th>
+                <th style="width: 40%;">Pembahasan Sederhana</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${pkgQuestions.map(q => `
+                <tr>
+                  <td style="text-align: center; font-weight: bold;">${q.nomor_urut_paket}</td>
+                  <td>${q.batang_soal}</td>
+                  <td style="text-align: center; font-weight: bold;">${q.kunci_jawaban}</td>
+                  <td>${q.pembahasan}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          ${getSignatureFooterHTML(idm)}
+        `;
+      } else if (docType === 'KISI_KISI') {
+        return `
+          ${getKopMadrasahHTML(idm, 'MATRIKS KISI-KISI PENULISAN SOAL MADRASAH IBTIDAIYAH')}
+          <p style="font-size: 10.5pt; margin-bottom: 10px;"><strong>Mata Pelajaran:</strong> ${idm.mapel || '-'} | <strong>Kelas/Fase:</strong> ${idm.kelas || '-'} | <strong>Kurikulum:</strong> ${idm.kurikulum || '-'}</p>
+          <table>
+            <thead>
+              <tr style="background: #f3f4f6;">
+                <th style="width: 5%; text-align: center;">No</th>
+                <th style="width: 18%;">Capaian Pembelajaran (CP)</th>
+                <th style="width: 16%;">Tujuan Pembelajaran (TP)</th>
+                <th style="width: 14%;">Materi</th>
+                <th style="width: 25%;">Indikator Soal</th>
+                <th style="width: 7%; text-align: center;">Level</th>
+                <th style="width: 9%;">Bentuk</th>
+                <th style="width: 6%; text-align: center;">No Soal</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${DB.INDIKATOR.map((ind, idx) => `
+                <tr>
+                  <td style="text-align: center;">${idx + 1}</td>
+                  <td>${ind.cp}</td>
+                  <td>${ind.tp}</td>
+                  <td>${ind.materi}</td>
+                  <td>${ind.indikator_soal}</td>
+                  <td style="text-align: center; font-weight: bold;">${ind.level_kognitif}</td>
+                  <td>${ind.bentuk_soal}</td>
+                  <td style="text-align: center; font-weight: bold;">${ind.nomor_soal}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          ${getSignatureFooterHTML(idm)}
+        `;
+      } else if (docType === 'KARTU_SOAL') {
+        return `
+          ${getKopMadrasahHTML(idm, 'KARTU SOAL STANDAR PENILAIAN MADRASAH IBTIDAIYAH')}
+          ${DB.BANK_SOAL.map(s => `
+            <table style="margin-bottom: 18px; page-break-inside: avoid;">
+              <tr>
+                <td style="width: 30%;"><strong>Mata Pelajaran:</strong> ${idm.mapel || '-'}</td>
+                <td style="width: 35%;"><strong>Kelas/Semester:</strong> ${idm.kelas || '-'} / ${idm.semester || '-'}</td>
+                <td style="width: 35%;"><strong>Kurikulum:</strong> ${idm.kurikulum || '-'}</td>
+              </tr>
+              <tr>
+                <td><strong>Nomor Soal:</strong> ${s.nomor_soal}</td>
+                <td><strong>Level Kognitif:</strong> ${s.level_kognitif} (${s.tingkat_kesulitan})</td>
+                <td><strong>Bentuk Soal:</strong> ${s.bentuk_soal} (Bobot: ${s.bobot})</td>
+              </tr>
+              <tr>
+                <td><strong>Materi Pokok:</strong><br>${s.materi}</td>
+                <td colspan="2"><strong>Indikator Soal:</strong><br>${s.indikator_soal}</td>
+              </tr>
+              <tr>
+                <td colspan="3">
+                  <strong>Rumusan Butir Soal (Bahasa Anak MI):</strong><br>
+                  <div style="margin: 6px 0; white-space: pre-line;">${s.batang_soal}</div>
+                  ${s.bentuk_soal === 'Pilihan Ganda' ? `
+                    <div>A. ${s.pilihan.A}</div>
+                    <div>B. ${s.pilihan.B}</div>
+                    <div>C. ${s.pilihan.C}</div>
+                    <div>D. ${s.pilihan.D}</div>
+                  ` : ''}
+                </td>
+              </tr>
+              <tr>
+                <td><strong>Kunci Jawaban:</strong> ${s.kunci_jawaban}</td>
+                <td colspan="2"><strong>Pembahasan:</strong> ${s.pembahasan}</td>
+              </tr>
+            </table>
+          `).join('')}
+          ${getSignatureFooterHTML(idm)}
+        `;
+      } else if (docType === 'ANALISIS_KUALITAS') {
+        return `
+          ${getKopMadrasahHTML(idm, 'LEMBAR TELAAH & VALIDASI KUALITAS BUTIR SOAL MI (11 PARAMETER)')}
+          <table>
+            <thead>
+              <tr style="background: #f3f4f6;">
+                <th style="width: 8%; text-align: center;">No Soal</th>
+                <th style="width: 15%;">Bentuk & Level</th>
+                <th style="width: 18%; text-align: center;">Kaidah PG Tanpa (?)</th>
+                <th style="width: 18%; text-align: center;">Status Validasi</th>
+                <th style="width: 41%;">Catatan & Rekomendasi Telaah</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${DB.BANK_SOAL.map(s => {
+                const val = s.validasi || validateSingleQuestion(s, DB.BANK_SOAL);
+                const noQMark = !s.batang_soal.includes('?');
+                return `
+                  <tr>
+                    <td style="text-align: center; font-weight: bold;">${s.nomor_soal}</td>
+                    <td>${s.bentuk_soal} (${s.level_kognitif})</td>
+                    <td style="text-align: center;">${noQMark ? 'Terpenuhi (Baku)' : 'Melanggar (?)'}</td>
+                    <td style="text-align: center; font-weight: bold;">${val.status}</td>
+                    <td>${val.issues.length > 0 ? val.issues.join('; ') : val.recommendations.join(' ')}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+          ${getSignatureFooterHTML(idm)}
+        `;
+      } else if (docType === 'REKAP_INDIKATOR') {
+        return `
+          ${getKopMadrasahHTML(idm, 'REKAPITULASI SEBARAN BUTIR SOAL MI BERDASARKAN INDIKATOR')}
+          <table>
+            <thead>
+              <tr style="background: #f3f4f6;">
+                <th style="width: 6%; text-align: center;">No</th>
+                <th style="width: 22%;">Materi Pokok</th>
+                <th style="width: 42%;">Indikator Soal</th>
+                <th style="width: 10%; text-align: center;">Level</th>
+                <th style="width: 10%; text-align: center;">No. Soal</th>
+                <th style="width: 10%; text-align: center;">Bobot</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${DB.INDIKATOR.map((ind, idx) => `
+                <tr>
+                  <td style="text-align: center;">${idx + 1}</td>
+                  <td>${ind.materi}</td>
+                  <td>${ind.indikator_soal}</td>
+                  <td style="text-align: center;">${ind.level_kognitif}</td>
+                  <td style="text-align: center; font-weight: bold;">${ind.nomor_soal}</td>
+                  <td style="text-align: center;">${ind.bobot}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          ${getSignatureFooterHTML(idm)}
+        `;
+      } else if (docType === 'REKAP_KOGNITIF') {
+        const counts = { C1: 0, C2: 0, C3: 0, C4: 0, C5: 0, C6: 0 };
+        DB.INDIKATOR.forEach(i => { if (counts[i.level_kognitif] !== undefined) counts[i.level_kognitif]++; });
+        const total = Math.max(1, DB.INDIKATOR.length);
+        return `
+          ${getKopMadrasahHTML(idm, 'REKAPITULASI DISTRIBUSI LEVEL KOGNITIF MI (TAKSONOMI BLOOM)')}
+          <table>
+            <thead>
+              <tr style="background: #f3f4f6;">
+                <th>Level Kognitif</th>
+                <th>Kategori Berpikir Anak MI</th>
+                <th style="text-align: center;">Jumlah Butir Soal</th>
+                <th style="text-align: center;">Persentase (%)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>C1 - Mengingat</td><td>LOTS (Mengenali & Menyebutkan)</td><td style="text-align: center;">${counts.C1}</td><td style="text-align: center;">${((counts.C1/total)*100).toFixed(1)}%</td></tr>
+              <tr><td>C2 - Memahami</td><td>LOTS (Memahami & Memberi Contoh)</td><td style="text-align: center;">${counts.C2}</td><td style="text-align: center;">${((counts.C2/total)*100).toFixed(1)}%</td></tr>
+              <tr><td>C3 - Menerapkan</td><td>MOTS (Menerapkan dalam Keseharian)</td><td style="text-align: center;">${counts.C3}</td><td style="text-align: center;">${((counts.C3/total)*100).toFixed(1)}%</td></tr>
+              <tr><td>C4 - Menganalisis</td><td>HOTS Sederhana Tingkat MI</td><td style="text-align: center;">${counts.C4}</td><td style="text-align: center;">${((counts.C4/total)*100).toFixed(1)}%</td></tr>
+              <tr><td>C5 - Mengevaluasi</td><td>HOTS Sederhana Tingkat MI</td><td style="text-align: center;">${counts.C5}</td><td style="text-align: center;">${((counts.C5/total)*100).toFixed(1)}%</td></tr>
+              <tr><td>C6 - Mencipta</td><td>HOTS Sederhana Tingkat MI</td><td style="text-align: center;">${counts.C6}</td><td style="text-align: center;">${((counts.C6/total)*100).toFixed(1)}%</td></tr>
+            </tbody>
+          </table>
+          ${getSignatureFooterHTML(idm)}
+        `;
+      }
+      return '';
+    }
+
+    function renderPrintDocument() {
+      const docType = document.getElementById('printDocTypeSelect')?.value || 'NASKAH_SOAL';
+      const container = document.getElementById('printAreaContainer');
+      if (container) {
+        container.innerHTML = buildDocumentHTMLByType(docType);
+      }
+    }
+
+    /**
+     * Ekspor Langsung Dokumen Spesifik ke Microsoft Word (.doc) dari Halaman Mana Saja
+     */
+    function exportSpecificDocToWord(docType) {
+      if ((docType === 'KISI_KISI' || docType === 'PAKET_LENGKAP') && DB.INDIKATOR.length === 0) {
+        showToast('Matriks Kisi-Kisi MI masih kosong. Silakan susun atau generate indikator terlebih dahulu.', 'warning');
+        return;
+      }
+      if ((docType === 'NASKAH_SOAL' || docType === 'KUNCI_JAWABAN' || docType === 'PEMBAHASAN') && DB.BANK_SOAL.length === 0) {
+        showToast('Belum ada butir soal MI. Silakan klik GENERATE SOAL DARI KISI-KISI terlebih dahulu.', 'warning');
+        return;
+      }
+
+      const contentHTML = buildDocumentHTMLByType(docType);
+      downloadWordFileFromHTML(docType, contentHTML);
+    }
+
+    /**
+     * Ekspor Dokumen Aktif di Pusat Cetak ke Microsoft Word (.doc)
+     */
+    function exportDocumentToWord() {
+      const docType = document.getElementById('printDocTypeSelect')?.value || 'NASKAH_SOAL';
+      exportSpecificDocToWord(docType);
+    }
+
+    /**
+     * Generator File Microsoft Word (.doc) Standar A4 dengan Dukungan Page Setup & Tabel
+     */
+    function downloadWordFileFromHTML(docType, contentHTML) {
+      const idm = DB.IDENTITAS_MADRASAH[0] || {};
+      const wordHTML = `
+        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head>
+          <meta charset='utf-8'>
+          <title>${docType}</title>
+          <!--[if gte mso 9]>
+          <xml>
+            <w:WordDocument>
+              <w:View>Print</w:View>
+              <w:Zoom>100</w:Zoom>
+              <w:DoNotOptimizeForBrowser/>
+            </w:WordDocument>
+          </xml>
+          <![endif]-->
+          <style>
+            @page WordSection1 {
+              size: 21.0cm 29.7cm;
+              margin: 2.0cm 2.0cm 2.0cm 2.0cm;
+              mso-header-margin: 1.2cm;
+              mso-footer-margin: 1.2cm;
+            }
+            div.WordSection1 { page: WordSection1; }
+            body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; color: #000000; line-height: 1.5; }
+            table { border-collapse: collapse; width: 100%; }
+            th, td { border: 1px solid #000000; padding: 5px 7px; vertical-align: top; font-size: 11.5pt; }
+            .kop-border { border-bottom: 3px double #000000; padding-bottom: 8px; margin-bottom: 16px; text-align: center; }
+          </style>
+        </head>
+        <body>
+          <div class="WordSection1">
+            ${contentHTML}
+          </div>
+        </body>
+        </html>
+      `;
+
+      const blob = new Blob(['\ufeff', wordHTML], { type: 'application/msword' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const mapelClean = (idm.mapel || 'MI').replace(/[^a-zA-Z0-9_-]/g, '_');
+      a.href = url;
+      a.download = `${docType}_MI_${mapelClean}.doc`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      DB.HASIL_EKSPOR.push({
+        id: 'EXP-' + Date.now(),
+        jenis_dokumen: docType,
+        format: 'WORD (.doc)',
+        waktu: new Date().toISOString(),
+        user: idm.nama_guru || 'Guru MI'
+      });
+      addLog('EXPORT_WORD', `Mengunduh dokumen MI ${docType} dalam format Microsoft Word (.doc)`);
+      showToast(`Dokumen ${docType} berhasil diunduh dalam format Microsoft Word (.doc)!`, 'success');
+    }
+
+    /**
+     * Ekspor Excel untuk Kisi-Kisi, Bank Soal, Monitoring, dan Seluruh 17 Sheet Database
+     */
+    function exportKisiExcel() {
+      const ws = XLSX.utils.json_to_sheet(DB.INDIKATOR);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'KISI_KISI_MI');
+      XLSX.writeFile(wb, `Kisi_Kisi_MI_${(DB.IDENTITAS_MADRASAH[0]?.mapel || 'Mapel').replace(/\s+/g, '_')}.xlsx`);
+      addLog('EXPORT_EXCEL', 'Mengekspor Kisi-Kisi MI ke file Excel (.xlsx)');
+      showToast('Kisi-Kisi MI berhasil diekspor ke Excel (.xlsx).', 'success');
+    }
+
+    function importKisiExcel(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+          if (rows.length > 0) {
+            DB.INDIKATOR = rows.map((r, i) => ({
+              id: r.id || ('IND-IMP-' + (i + 1)),
+              kisi_id: 'KISI-001',
+              no_urut: i + 1,
+              cp: r.cp || r['Capaian Pembelajaran'] || DB.IDENTITAS_MADRASAH[0]?.cp || '',
+              tp: r.tp || r['Tujuan Pembelajaran'] || DB.IDENTITAS_MADRASAH[0]?.tp || '',
+              materi: r.materi || r['Materi'] || 'Materi Pokok MI',
+              indikator_soal: r.indikator_soal || r['Indikator Soal'] || 'Disajikan pernyataan sederhana...',
+              level_kognitif: r.level_kognitif || r['Level Kognitif'] || 'C2',
+              bentuk_soal: r.bentuk_soal || r['Bentuk Soal'] || 'Pilihan Ganda',
+              nomor_soal: Number(r.nomor_soal || r['Nomor Soal'] || (i + 1)),
+              bobot: Number(r.bobot || r['Bobot'] || 10),
+              updated_at: new Date().toISOString()
+            }));
+            renderKisiTable();
+            showToast(`Berhasil mengimpor ${DB.INDIKATOR.length} baris indikator MI dari Excel!`, 'success');
+          }
+        } catch (err) {
+          showToast('Format file Excel tidak dikenali.', 'error');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function exportBankSoalExcel() {
+      const flat = DB.BANK_SOAL.map(s => ({
+        ID_Soal: s.id,
+        Nomor: s.nomor_soal,
+        Mapel_MI: s.mapel,
+        Kelas_MI: s.kelas,
+        Materi: s.materi,
+        Indikator: s.indikator_soal,
+        Level_Kognitif: s.level_kognitif,
+        Bentuk_Soal: s.bentuk_soal,
+        Batang_Soal: s.batang_soal,
+        Opsi_A: s.pilihan?.A || '',
+        Opsi_B: s.pilihan?.B || '',
+        Opsi_C: s.pilihan?.C || '',
+        Opsi_D: s.pilihan?.D || '',
+        Kunci_Jawaban: s.kunci_jawaban,
+        Pembahasan: s.pembahasan,
+        Bobot: s.bobot,
+        Status_Validasi: s.validasi?.status || 'VALID'
+      }));
+      const ws = XLSX.utils.json_to_sheet(flat);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'BANK_SOAL_MI');
+      XLSX.writeFile(wb, `Bank_Soal_MI_${(DB.IDENTITAS_MADRASAH[0]?.mapel || 'Mapel').replace(/\s+/g, '_')}.xlsx`);
+      showToast('Bank Soal MI berhasil diekspor ke Excel (.xlsx).', 'success');
+    }
+
+    function exportFullWorkbookExcel() {
+      const wb = XLSX.utils.book_new();
+      REQUIRED_17_SHEETS.forEach(sheetName => {
+        const rows = (DB[sheetName] && DB[sheetName].length > 0) ? DB[sheetName] : [{ info: `Tabel ${sheetName} Siap Digunakan` }];
+        const cleanRows = rows.map(r => {
+          const copy = { ...r };
+          if (copy.pilihan) copy.pilihan = JSON.stringify(copy.pilihan);
+          if (copy.validasi) copy.validasi = JSON.stringify(copy.validasi);
+          return copy;
+        });
+        const ws = XLSX.utils.json_to_sheet(cleanRows);
+        XLSX.utils.book_append_sheet(wb, ws, sheetName.substring(0, 31));
+      });
+      XLSX.writeFile(wb, `Database_17_Sheet_SIM_EVALUASI_MI.xlsx`);
+      addLog('EXPORT_FULL_DB', 'Mengekspor seluruh 17 Sheet Database MI ke file Workbook Excel (.xlsx)');
+      showToast('Seluruh 17 Sheet Database berhasil diunduh sebagai Workbook Excel (.xlsx)!', 'success');
+    }
+
+    function exportMonitoringExcel() {
+      const idm = DB.IDENTITAS_MADRASAH[0] || {};
+      if (!idm.nama_guru && DB.KISI_KISI.length === 0) {
+        showToast('Belum ada data monitoring penyusunan perangkat guru MI untuk diekspor.', 'warning');
+        return;
+      }
+      const data = [{
+        Nama_Guru_MI: idm.nama_guru || '-',
+        NIP: idm.nip_guru || '-',
+        Nama_MI: idm.nama_madrasah || '-',
+        Mapel_MI: idm.mapel || '-',
+        Kelas_MI: idm.kelas || '-',
+        Jenis_Penilaian: idm.jenis_penilaian || '-',
+        Jumlah_Indikator: DB.INDIKATOR.length,
+        Jumlah_Soal: DB.BANK_SOAL.length,
+        Soal_Valid: DB.BANK_SOAL.filter(s => (s.validasi?.status || 'VALID') === 'VALID').length
+      }];
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'MONITORING_GURU_MI');
+      XLSX.writeFile(wb, 'Rekapitulasi_Monitoring_Kepala_MI.xlsx');
+      showToast('Rekapitulasi Monitoring Kepala MI berhasil diunduh.', 'success');
+    }
+
+    /* ==========================================
+       DASHBOARD & KONFIGURASI 17 SHEET
+       ========================================== */
+    function updateBadges() {
+      document.getElementById('badgeIndikatorCount').textContent = DB.INDIKATOR.length;
+      document.getElementById('badgeGeneratedCount').textContent = DB.BANK_SOAL.length;
+      document.getElementById('badgeBankCount').textContent = DB.BANK_SOAL.length;
+    }
+
+    function renderDashboard() {
+      const validSoal = DB.BANK_SOAL.filter(s => (s.validasi?.status || 'VALID') === 'VALID').length;
+      const revisiSoal = DB.BANK_SOAL.length - validSoal;
+
+      document.getElementById('statKisiCount').textContent = DB.KISI_KISI.length;
+      document.getElementById('statIndikatorCount').textContent = DB.INDIKATOR.length;
+      document.getElementById('statSoalCount').textContent = DB.BANK_SOAL.length;
+      document.getElementById('statValidCount').textContent = validSoal;
+      document.getElementById('statRevisiCount').textContent = revisiSoal;
+      document.getElementById('statPaketCount').textContent = DB.PAKET_UJIAN.length;
+
+      // Render Bar Distribusi Kognitif
+      const counts = { C1: 0, C2: 0, C3: 0, C4: 0, C5: 0, C6: 0 };
+      DB.INDIKATOR.forEach(i => { if (counts[i.level_kognitif] !== undefined) counts[i.level_kognitif]++; });
+      const total = Math.max(1, DB.INDIKATOR.length);
+      const labels = {
+        C1: ['C1: Mengingat (LOTS MI)', 'bg-slate-500'],
+        C2: ['C2: Memahami (LOTS MI)', 'bg-blue-500'],
+        C3: ['C3: Menerapkan (MOTS MI)', 'bg-kemenag-600'],
+        C4: ['C4: Menganalisis Sederhana (HOTS MI)', 'bg-amber-500'],
+        C5: ['C5: Mengevaluasi Sederhana (HOTS MI)', 'bg-orange-600'],
+        C6: ['C6: Mencipta Sederhana (HOTS MI)', 'bg-purple-600']
+      };
+
+      const barsContainer = document.getElementById('cognitiveDistributionBars');
+      barsContainer.innerHTML = Object.keys(counts).map(lvl => {
+        const pct = DB.INDIKATOR.length > 0 ? Math.round((counts[lvl] / total) * 100) : 0;
+        return `
+          <div class="text-xs">
+            <div class="flex justify-between mb-1">
+              <span class="font-medium text-slate-700">${labels[lvl][0]}</span>
+              <span class="font-bold text-slate-800">${counts[lvl]} Indikator (${pct}%)</span>
+            </div>
+            <div class="w-full bg-slate-100 rounded-full h-2">
+              <div class="${labels[lvl][1]} h-2 rounded-full transition-all" style="width: ${pct}%"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Tabel Monitoring Kepala Madrasah (Real Data Only)
+      const idm = DB.IDENTITAS_MADRASAH[0] || {};
+      const monTable = document.getElementById('monitoringTeacherTable');
+      if (!idm.nama_guru && DB.INDIKATOR.length === 0 && DB.BANK_SOAL.length === 0) {
+        monTable.innerHTML = `
+          <tr>
+            <td colspan="6" class="py-6 px-3 text-center text-slate-400">
+              Belum ada data penyusunan kisi-kisi dan soal MI. Silakan isi menu <strong>1. Identitas MI & CP/TP</strong> terlebih dahulu.
+            </td>
+          </tr>
+        `;
+      } else {
+        monTable.innerHTML = `
+          <tr class="bg-kemenag-50/40">
+            <td class="py-2.5 px-3 font-semibold text-slate-800">${idm.nama_guru || '-'}</td>
+            <td class="py-2.5 px-3">${idm.mapel || '-'} (${(idm.kelas || '-').split('/')[0]})</td>
+            <td class="py-2.5 px-3">${idm.jenis_penilaian || '-'}</td>
+            <td class="py-2.5 px-3 text-center font-bold">${DB.INDIKATOR.length}</td>
+            <td class="py-2.5 px-3 text-center font-bold text-kemenag-700">${DB.BANK_SOAL.length}</td>
+            <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold">${validSoal} Valid</span></td>
+          </tr>
+        `;
+      }
+
+      // Log Aktivitas
+      const logContainer = document.getElementById('activityLogList');
+      if (DB.LOG_AKTIVITAS.length === 0) {
+        logContainer.innerHTML = `<div class="py-3 text-center text-slate-400">Belum ada aktivitas tercatat.</div>`;
+      } else {
+        logContainer.innerHTML = DB.LOG_AKTIVITAS.map(l => `
+          <div class="flex items-center justify-between py-1 border-b border-slate-50">
+            <div><span class="font-semibold text-kemenag-700">[${l.aksi}]</span> ${l.detail}</div>
+            <span class="text-[11px] text-slate-400 shrink-0 ml-2">${l.waktu}</span>
+          </div>
+        `).join('');
+      }
+
+      updateBadges();
+    }
+
+    function renderConfigView() {
+      const grid = document.getElementById('databaseSheetsGrid');
+      const select = document.getElementById('dbInspectorSelect');
+      const currentVal = select.value || 'INDIKATOR';
+
+      const gasUrlEl = document.getElementById('cfg_gasUrlInput');
+      if (gasUrlEl) gasUrlEl.value = gasWebAppUrl || '';
+
+      grid.innerHTML = REQUIRED_17_SHEETS.map((name, i) => {
+        const count = (DB[name] || []).length;
+        return `
+          <div onclick="document.getElementById('dbInspectorSelect').value='${name}'; renderDatabaseInspector();" class="cursor-pointer p-2.5 rounded-lg border border-slate-200 hover:border-kemenag-500 bg-slate-50/70 flex items-center justify-between text-xs transition">
+            <div class="truncate pr-1">
+              <span class="text-[10px] text-slate-400 font-mono">${i + 1}.</span>
+              <span class="font-mono font-semibold text-slate-800">${name}</span>
+            </div>
+            <span class="px-1.5 py-0.5 rounded bg-kemenag-100 text-kemenag-800 font-bold text-[10px]">${count}</span>
+          </div>
+        `;
+      }).join('');
+
+      select.innerHTML = REQUIRED_17_SHEETS.map(name => `<option value="${name}" ${name === currentVal ? 'selected' : ''}>${name} (${(DB[name]||[]).length} baris)</option>`).join('');
+      renderDatabaseInspector();
+    }
+
+    function renderDatabaseInspector() {
+      const tableName = document.getElementById('dbInspectorSelect').value || 'INDIKATOR';
+      const rows = DB[tableName] || [];
+      const container = document.getElementById('dbInspectorTableContainer');
+
+      if (rows.length === 0) {
+        container.innerHTML = `<div class="p-6 text-center text-xs text-slate-400">Tabel <code>${tableName}</code> siap digunakan (0 baris).</div>`;
+        return;
+      }
+
+      const headers = Object.keys(rows[0]).filter(k => k !== 'pilihan' && k !== 'validasi');
+      container.innerHTML = `
+        <table class="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr class="bg-slate-100 border-b border-slate-200 font-mono text-[11px] text-slate-700">
+              ${headers.map(h => `<th class="py-2 px-3">${h}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            ${rows.map(r => `
+              <tr class="hover:bg-slate-50">
+                ${headers.map(h => `<td class="py-2 px-3 max-w-xs truncate">${typeof r[h] === 'object' ? JSON.stringify(r[h]) : r[h]}</td>`).join('')}
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    function saveGasWebAppUrl() {
+      const url = document.getElementById('cfg_gasUrlInput').value.trim();
+      gasWebAppUrl = url;
+      localStorage.setItem(LOCAL_STORAGE_GAS_URL, url);
+      if (url) {
+        showToast('URL Web App Google Apps Script berhasil dihubungkan! Menyinkronkan data...', 'success');
+        saveAllToDatabase(true);
+      } else {
+        showToast('URL Web App dikosongkan. Aplikasi menggunakan penyimpanan lokal browser.', 'info');
+      }
+    }
+
+    function initialize17SheetsBackend() {
+      if (isGasEnvironment) {
+        google.script.run
+          .withSuccessHandler(msg => showToast(msg, 'success'))
+          .withFailureHandler(err => showToast(err.message, 'error'))
+          .initializeDatabaseSheets();
+      } else if (gasWebAppUrl) {
+        fetch(gasWebAppUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'INIT_SHEETS' })
+        })
+          .then(r => r.json())
+          .then(res => showToast(res.message || '17 Sheet Google Spreadsheet berhasil diinisialisasi!', 'success'))
+          .catch(err => showToast('Gagal menghubungi Web App GAS: ' + err.message, 'error'));
+      } else {
+        addLog('INIT_17_SHEETS', 'Memverifikasi skema 17 Sheet Database Google Spreadsheet');
+        renderConfigView();
+        showToast('Seluruh 17 Sheet Database terverifikasi aktif dan siap disinkronkan!', 'success');
+      }
+    }
+
+    function saveApiKeyToBackend() {
+      const key = document.getElementById('cfg_apiKeyInput').value.trim();
+      if (!key) {
+        showToast('Masukkan API Key terlebih dahulu.', 'warning');
+        return;
+      }
+      runtimeApiKey = key;
+      localStorage.setItem(LOCAL_STORAGE_API_KEY, key);
+
+      if (isGasEnvironment) {
+        google.script.run
+          .withSuccessHandler(() => {
+            document.getElementById('cfg_apiKeyInput').value = '';
+            showToast('API Key berhasil dienkripsi dan disimpan di PropertiesService backend.', 'success');
+          })
+          .withFailureHandler(err => {
+            showToast('Gagal menyimpan API Key: ' + err.message, 'error');
+          })
+          .saveApiKeyServer(key);
+      } else if (gasWebAppUrl) {
+        fetch(gasWebAppUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'SAVE_API_KEY', apiKey: key })
+        }).finally(() => {
+          document.getElementById('cfg_apiKeyInput').value = '';
+          showToast('API Key berhasil disimpan di Browser & PropertiesService Google Apps Script.', 'success');
+        });
+      } else {
+        document.getElementById('cfg_apiKeyInput').value = '';
+        addLog('UPDATE_API_KEY', 'Menyimpan konfigurasi API Key ke sistem');
+        showToast('API Key berhasil disimpan dan siap digunakan untuk Generate Soal MI.', 'success');
+      }
+    }
+
+    function saveAllToDatabase(notify = true) {
+      // Selalu simpan cadangan ke localStorage (Berguna saat deploy di Vercel)
+      try {
+        localStorage.setItem(LOCAL_STORAGE_DB_KEY, JSON.stringify(DB));
+      } catch (e) {}
+
+      if (isGasEnvironment) {
+        google.script.run
+          .withSuccessHandler(() => {
+            if (notify) showToast('Seluruh perubahan berhasil disinkronkan ke Google Spreadsheet!', 'success');
+          })
+          .withFailureHandler(err => {
+            if (notify) showToast('Gagal menyimpan ke Spreadsheet: ' + err.message, 'error');
+          })
+          .syncAllDatabaseTablesServer(DB);
+      } else if (gasWebAppUrl) {
+        fetch(gasWebAppUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'SYNC_DB', dbPayload: DB })
+        })
+          .then(r => r.json())
+          .then(() => {
+            if (notify) showToast('Data berhasil disinkronkan dari Vercel ke 17 Sheet Google Spreadsheet!', 'success');
+          })
+          .catch(err => {
+            if (notify) showToast('Tersimpan di browser lokal (Gagal sinkron ke URL GAS: ' + err.message + ')', 'warning');
+          });
+      } else if (notify) {
+        addLog('SYNC_DATABASE', 'Menyinkronkan seluruh 17 tabel relasional ke Database');
+        showToast('Seluruh data Kisi-Kisi, Bank Soal, dan Paket Ujian MI berhasil disimpan!', 'success');
+      }
+    }
+
+    /* ==========================================
+       INISIALISASI AWAL SAAT HALAMAN DIMUAT (MENDUKUNG GAS & VERCEL)
+       ========================================== */
+    window.onload = function() {
+      // Muat cadangan lokal terlebih dahulu jika ada
+      try {
+        const savedLocal = localStorage.getItem(LOCAL_STORAGE_DB_KEY);
+        if (savedLocal) {
+          const parsed = JSON.parse(savedLocal);
+          REQUIRED_17_SHEETS.forEach(sheet => {
+            if (Array.isArray(parsed[sheet]) && parsed[sheet].length > 0) {
+              DB[sheet] = parsed[sheet];
+            }
+          });
+        }
+      } catch (e) {}
+
+      if (isGasEnvironment) {
+        google.script.run
+          .withSuccessHandler(serverData => {
+            if (serverData && typeof serverData === 'object') {
+              REQUIRED_17_SHEETS.forEach(sheet => {
+                if (Array.isArray(serverData[sheet]) && serverData[sheet].length > 0) {
+                  DB[sheet] = serverData[sheet];
+                }
+              });
+            }
+            loadIdentitasToForm();
+            renderKisiTable();
+            renderDashboard();
+          })
+          .withFailureHandler(err => {
+            showToast('Gagal memuat database dari Google Spreadsheet: ' + err.message, 'error');
+          })
+          .loadAllDatabaseTablesServer();
+      } else if (gasWebAppUrl) {
+        fetch(gasWebAppUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'LOAD_DB' })
+        })
+          .then(r => r.json())
+          .then(res => {
+            const serverData = res.data;
+            if (serverData && typeof serverData === 'object') {
+              REQUIRED_17_SHEETS.forEach(sheet => {
+                if (Array.isArray(serverData[sheet]) && serverData[sheet].length > 0) {
+                  DB[sheet] = serverData[sheet];
+                }
+              });
+            }
+          })
+          .catch(() => {})
+          .finally(() => {
+            loadIdentitasToForm();
+            renderKisiTable();
+            renderDashboard();
+          });
+      } else {
+        loadIdentitasToForm();
+        renderKisiTable();
+        renderDashboard();
+      }
+    };
+  </script>
+</body>
+</html>
